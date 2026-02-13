@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+.pytest_cache/
+
+# Node / CDK
+node_modules/
+infra/cdk.out/
+infra/bin/*.js
+infra/bin/*.d.ts
+infra/lib/*.js
+infra/lib/*.d.ts
+
+# Environment & secrets
+.env
+.env.*
+static/config.js
+
+# AgentCore CLI config (contains account-specific values)
+.bedrock_agentcore.yaml
+
+# CDK context (contains account-specific values)
+infra/cdk.context.json
+
+# Blog (published separately)
+BLOG.md
+
+# Build artifacts
+static.zip
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Diagrams source (keep PNGs)
+diagrams/*.mmd

@@ -1,0 +1,8 @@
+// This file is generated at deploy time by CDK (Amplify stack).
+// For local development, replace with your own values.
+window.APP_CONFIG = {
+  API_URL: '',
+  COGNITO_USER_POOL_ID: '',
+  COGNITO_CLIENT_ID: '',
+  REGION: ''
+};

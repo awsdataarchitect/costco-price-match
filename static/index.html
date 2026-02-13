@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Costco Receipt Scanner</title>
+<style>
+:root{--blue:#005daa;--red:#e31837;--green:#28a745;--gray:#6c757d;--bg:#f0f2f5;--card:#fff;--border:#e8eaed;--text:#1a1a2e;--muted:#888}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);min-height:100vh;color:var(--text)}
+.nav{background:var(--card);padding:14px 24px;box-shadow:0 1px 3px rgba(0,0,0,.08);position:sticky;top:0;z-index:10}
+.nav-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}
+.nav h1{font-size:1.4em;color:var(--red);display:flex;align-items:center;gap:8px}
+.nav-badge{font-size:.65em;background:var(--blue);color:#fff;padding:2px 10px;border-radius:12px;font-weight:500}
+.container{max-width:1200px;margin:0 auto;padding:16px 20px 40px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.card{background:var(--card);border-radius:10px;padding:20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid var(--border)}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.card-header h2{font-size:1.1em;color:var(--text);display:flex;align-items:center;gap:8px}
+.badge{font-size:.75em;padding:2px 10px;border-radius:12px;font-weight:500}
+.badge-blue{background:#e8f0fe;color:var(--blue)}
+.badge-red{background:#fce8eb;color:var(--red)}
+.badge-green{background:#e6f4ea;color:var(--green)}
+.btn-row{display:flex;gap:6px;flex-wrap:wrap}
+.btn{border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:.82em;font-weight:500;transition:all .15s;display:inline-flex;align-items:center;gap:4px}
+.btn-primary{background:var(--blue);color:#fff}
+.btn-primary:hover{background:#004a8f}
+.btn-danger{background:var(--red);color:#fff}
+.btn-danger:hover{background:#a01128;transform:scale(1.05)}
+.btn-ghost{background:transparent;color:var(--gray);border:1px solid var(--border)}
+.btn-ghost:hover{background:#f8f9fa}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.icon-btn{font-size:.75em;padding:4px 10px;text-decoration:none;border-radius:6px;transition:background .15s}
+.icon-btn:hover{background:#dbeafe}
+.icon-btn-del:hover{background:#fce8eb!important}
+input[type=file]{display:none}
+.upload-zone{border:2px dashed var(--border);border-radius:8px;padding:20px;text-align:center;cursor:pointer;transition:all .2s}
+.upload-zone:hover{border-color:var(--blue);background:#f8f9ff}
+.search-input{width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:6px;font-size:.88em;background:var(--bg)}
+.search-input:focus{outline:none;border-color:var(--blue);background:#fff}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:10px 0}
+.tab{padding:5px 12px;border-radius:16px;font-size:.78em;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--gray);transition:all .15s;user-select:none}
+.tab:hover{background:#f0f4ff;border-color:var(--blue)}
+.tab.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.tab .cnt{opacity:.7;margin-left:3px}
+.deals-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:8px;margin-top:10px;max-height:560px;overflow-y:auto}
+.deal{padding:12px 14px;background:var(--bg);border-radius:8px;border:1px solid transparent;transition:all .15s}
+.deal:hover{border-color:var(--blue);background:#f8f9ff}
+.deal-del{position:absolute;top:6px;right:6px;background:none;border:none;cursor:pointer;font-size:.7em;color:var(--muted);opacity:0;transition:opacity .15s;padding:2px 5px;border-radius:4px}
+.deal:hover .deal-del{opacity:.6}
+.deal-del:hover{opacity:1!important;color:var(--red);background:#fce8eb}
+.deal-name{font-weight:500;font-size:.88em;margin-bottom:4px}
+.deal-name a{color:var(--blue);text-decoration:none}
+.deal-name a:hover{text-decoration:underline}
+.deal-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.price{font-weight:700;color:var(--green);font-size:1em}
+.item-num{font-size:.75em;color:var(--muted)}
+.source-tag{font-size:.68em;color:var(--gray);background:var(--card);padding:2px 8px;border-radius:10px;border:1px solid var(--border)}
+.expiry{font-size:.72em;color:#e67e22}
+.status{padding:10px 14px;border-radius:6px;margin:8px 0;font-size:.88em;font-weight:500}
+.status-ok{background:#e6f4ea;color:#137333}
+.status-err{background:#fce8eb;color:#c5221f}
+.status-load{background:#e8f0fe;color:#1967d2}
+.empty{text-align:center;padding:24px;color:var(--muted);font-size:.9em}
+table{width:100%;border-collapse:collapse;font-size:.85em}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--border)}
+th{background:var(--bg);font-weight:600;color:var(--gray);font-size:.8em;text-transform:uppercase;letter-spacing:.3px}
+tr.item-row{cursor:pointer;transition:background .1s}
+tr.item-row:hover{background:#f0f4ff}
+tr.item-row.selected{background:#dbeafe;border-left:3px solid var(--blue)}
+.edit-btn{background:none;border:none;cursor:pointer;font-size:.8em;padding:2px 4px;opacity:.4;transition:opacity .15s}
+.edit-btn:hover,.item-row:hover .edit-btn{opacity:1}
+.edit-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:100;display:flex;align-items:center;justify-content:center}
+.edit-form{background:var(--card);border-radius:10px;padding:20px;width:360px;box-shadow:0 8px 30px rgba(0,0,0,.2)}
+.edit-form h3{margin-bottom:12px;font-size:1em}
+.edit-form label{display:block;font-size:.78em;color:var(--gray);margin:8px 0 3px;font-weight:600;text-transform:uppercase}
+.edit-form input{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:5px;font-size:.88em}
+.edit-form input:focus{outline:none;border-color:var(--blue)}
+.edit-form .btn-row{margin-top:14px;justify-content:flex-end}
+.receipt-card{padding:14px;background:var(--bg);border-radius:8px;margin:8px 0;border:1px solid transparent;cursor:pointer;transition:all .15s}
+.receipt-card:hover{border-color:var(--blue);background:#f8f9ff}
+.receipt-card.selected{border-color:var(--blue);background:#e8f0fe}
+.receipt-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.receipt-title{font-weight:600;font-size:.92em}
+.receipt-stats{display:flex;gap:12px}
+.receipt-stat{text-align:center}
+.receipt-stat-val{font-weight:700;color:var(--blue);font-size:1.1em}
+.receipt-stat-lbl{font-size:.7em;color:var(--muted);text-transform:uppercase}
+.receipt-items{display:none;margin-top:8px}
+.receipt-card.expanded .receipt-items{display:block}
+.info{font-size:.85em;color:var(--muted);margin-bottom:10px}
+.showing{font-size:.8em;color:var(--muted);margin:6px 0}
+#analysis{line-height:1.5;font-size:.9em}
+#analysis table{margin:4px 0;width:100%;font-size:.85em}
+#analysis td,#analysis th{vertical-align:top}
+.select-receipt{padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:.85em;background:var(--card);width:100%;margin-bottom:10px}
+.multi-select{position:relative;width:100%;min-width:200px;flex:1}
+.multi-select-btn{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:.85em;background:var(--card);cursor:pointer;display:flex;justify-content:space-between;align-items:center;text-align:left;color:var(--text)}
+.multi-select-btn:hover{border-color:var(--blue)}
+.multi-select-btn .arrow{font-size:.6em;color:var(--muted);transition:transform .2s}
+.multi-select.open .arrow{transform:rotate(180deg)}
+.multi-select-dd{display:none;position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:20;max-height:260px;overflow-y:auto;margin-top:4px}
+.multi-select.open .multi-select-dd{display:block}
+.ms-opt{display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;font-size:.84em;transition:background .1s}
+.ms-opt:hover{background:var(--bg)}
+.ms-opt input{accent-color:var(--blue)}
+.ms-opt.all{border-bottom:1px solid var(--border);font-weight:600}
+.upload-file-list{margin-top:10px}
+.upload-file{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg);border-radius:8px;margin-bottom:6px;font-size:.85em;border:1px solid var(--border)}
+.upload-file .fname{flex:1;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.upload-file .fsize{color:var(--muted);font-size:.8em;white-space:nowrap}
+.upload-file .fstatus{font-size:.8em;white-space:nowrap;min-width:70px;text-align:right}
+.upload-file .fprog{flex:0 0 80px;height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.upload-file .fprog-bar{height:100%;background:var(--blue);border-radius:2px;transition:width .3s}
+.upload-file.done{border-color:#c6efce;background:#e6f4ea}
+.upload-file.err{border-color:#fcd5d5;background:#fce8eb}
+.date-input{padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:.85em;background:var(--card)}
+.source-checks{display:flex;gap:6px;flex-wrap:wrap}
+.source-checks label{display:flex;align-items:center;gap:3px;font-size:.8em;color:var(--gray);cursor:pointer;padding:2px 8px;border:1px solid var(--border);border-radius:12px;transition:all .15s}
+.source-checks label:hover{border-color:var(--blue);background:#f0f4ff}
+.source-checks input:checked+span{color:var(--blue);font-weight:600}
+.source-checks input{display:none}
+@media(max-width:768px){
+  .grid-2{grid-template-columns:1fr}
+  .deals-grid{grid-template-columns:1fr}
+  .nav h1{font-size:1.2em}
+}
+</style>
+</head>
+<body>
+<div class="nav"><div class="nav-inner">
+  <h1>🛒 Costco Scanner <span class="nav-badge">AI-Powered</span> <button id="logout-btn" onclick="signOut()" style="display:none;float:right;font-size:14px;padding:6px 14px;background:var(--border);border:none;border-radius:6px;cursor:pointer;color:var(--text)">Sign Out</button></h1>
+  <div class="btn-row">
+    <span id="totalDeals" class="badge badge-blue" style="display:none"></span>
+    <span id="totalReceipts" class="badge badge-red" style="display:none"></span>
+  </div>
+</div></div>
+
+<div class="container">
+
+<div class="card" style="padding:14px 20px">
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <h2 style="font-size:1em;margin:0;white-space:nowrap">📄 Upload Receipts</h2>
+    <div class="upload-zone" onclick="document.getElementById('pdfFile').click()" style="padding:8px 16px;border-width:1px;display:flex;align-items:center;gap:8px;flex:1;min-width:200px">
+      <input type="file" id="pdfFile" accept=".pdf" multiple>
+      <span id="uploadLabel" style="font-size:.85em">📄 Choose PDFs or drag & drop</span>
+    </div>
+    <button class="btn btn-primary" onclick="uploadReceipts()">📤 Upload & Parse</button>
+  </div>
+  <div id="uploadFileList" class="upload-file-list"></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h2>🤖 AI Price Match</h2></div>
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+    <div class="multi-select" id="receiptMultiSelect">
+      <button class="multi-select-btn" onclick="toggleMultiSelect()" type="button">
+        <span id="msLabel">All receipts</span><span class="arrow">▼</span>
+      </button>
+      <div class="multi-select-dd" id="msDropdown"></div>
+    </div>
+    <button class="btn btn-primary" onclick="runAnalysis()">🧠 Analyze</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;font-size:.82em">
+    <label style="color:var(--gray)">Deals from:</label>
+    <input type="date" id="analysisDateFrom" class="date-input">
+    <label style="color:var(--gray)">to:</label>
+    <input type="date" id="analysisDateTo" class="date-input">
+    <label style="color:var(--gray);margin-left:8px">Sources:</label>
+    <div id="analysisSources" class="source-checks"></div>
+  </div>
+  <div id="analysisStatus"></div>
+  <div id="analysis"></div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2>📉 Deals</h2>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="scanPrices()" title="Load deals (uses cache if available)">🔍 Scan</button>
+      <button class="btn btn-ghost" onclick="scanPrices(true)" title="Force fresh scrape of all sources">🔄 Refresh</button>
+      <button class="btn btn-danger" onclick="clearDeals()" title="Delete all deals">🗑️</button>
+    </div>
+  </div>
+  <input type="text" class="search-input" id="dealSearch" placeholder="Search by name, item #, or source..." oninput="filterDeals()">
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0;font-size:.82em">
+    <label style="color:var(--gray)">Date range:</label>
+    <input type="date" id="dealDateFrom" class="date-input" onchange="filterDeals()">
+    <label style="color:var(--gray)">to:</label>
+    <input type="date" id="dealDateTo" class="date-input" onchange="filterDeals()">
+    <button class="btn btn-ghost" style="font-size:.78em;padding:3px 8px" onclick="$('dealDateFrom').value='';$('dealDateTo').value='';filterDeals()">Clear</button>
+  </div>
+  <div id="dealTabs" class="tabs"></div>
+  <div id="showingCount" class="showing"></div>
+  <div id="priceStatus"></div>
+  <div id="dealsArea"></div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2>🧾 Receipts</h2>
+    <div class="btn-row">
+      <button class="btn btn-ghost icon-btn" onclick="loadReceipts()" title="Refresh list">↻</button>
+      <button class="btn btn-danger" onclick="clearReceipts()" title="Delete all receipts">🗑️</button>
+    </div>
+  </div>
+  <div id="receiptsArea"></div>
+</div>
+
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let allDeals = [], activeTab = 'all';
+let CONFIG = null; // Will be set by config.js if present
+
+// Try to load config.js (Amplify environment)
+(function() {
+  const script = document.createElement('script');
+  script.src = 'config.js';
+  script.onload = () => { CONFIG = window.CONFIG; initializeApp(); };
+  script.onerror = () => { CONFIG = null; initializeApp(); };
+  document.head.appendChild(script);
+})();
+
+function initializeApp() {
+  // Initialize auth if CONFIG exists (Amplify mode)
+  if (CONFIG && CONFIG.COGNITO_USER_POOL_ID) {
+    initializeCognito();
+  } else {
+    // Local mode - load data immediately
+    loadReceipts();
+    loadDeals();
+  }
+}
+
+// Cognito auth (Amplify mode)
+let currentUser = null;
+let userPool = null;
+
+function initializeCognito() {
+  // Load AWS Cognito SDK
+  const sdk = document.createElement('script');
+  sdk.src = 'https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6/dist/amazon-cognito-identity.min.js';
+  sdk.onload = () => {
+    userPool = new AmazonCognitoIdentity.CognitoUserPool({
+      UserPoolId: CONFIG.COGNITO_USER_POOL_ID,
+      ClientId: CONFIG.COGNITO_CLIENT_ID,
+    });
+    // Check for existing session
+    const cognitoUser = userPool.getCurrentUser();
+    if (cognitoUser) {
+      cognitoUser.getSession((err, session) => {
+        if (session && session.isValid()) {
+          currentUser = { email: cognitoUser.getUsername(), token: session.getIdToken().getJwtToken() };
+          document.getElementById('logout-btn').style.display = '';
+          loadReceipts();
+          loadDeals();
+        } else { showLoginUI(); }
+      });
+    } else { showLoginUI(); }
+  };
+  document.head.appendChild(sdk);
+}
+
+function showLoginUI() {
+  document.querySelector('.container').style.display = 'none';
+  const d = document.createElement('div');
+  d.id = 'auth-screen';
+  d.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg)">
+      <div style="background:var(--card);padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.1);max-width:400px;width:90%">
+        <h1 style="color:var(--red);text-align:center;margin-bottom:8px">🛒 Costco Scanner</h1>
+        <p style="color:var(--muted);text-align:center;margin-bottom:24px" id="auth-subtitle">Sign in to continue</p>
+        <div id="auth-error" style="display:none;background:#fee;color:#c00;padding:10px;border-radius:8px;margin-bottom:16px;font-size:14px"></div>
+        <div id="auth-form">
+          <input id="auth-email" type="email" placeholder="Email" style="width:100%;padding:12px;margin-bottom:12px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-size:15px">
+          <input id="auth-pass" type="password" placeholder="Password" style="width:100%;padding:12px;margin-bottom:16px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-size:15px">
+          <button onclick="doSignIn()" class="btn btn-primary" style="width:100%;padding:12px;margin-bottom:12px">Sign In</button>
+          <p style="text-align:center;color:var(--muted);font-size:14px">No account? <a href="#" onclick="showSignUp();return false" style="color:var(--red)">Sign Up</a></p>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(d);
+}
+
+function showSignUp() {
+  document.getElementById('auth-subtitle').textContent = 'Create your account';
+  document.getElementById('auth-error').style.display = 'none';
+  document.getElementById('auth-form').innerHTML = `
+    <input id="auth-email" type="email" placeholder="Email" style="width:100%;padding:12px;margin-bottom:12px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-size:15px">
+    <input id="auth-pass" type="password" placeholder="Password (8+ chars, upper, lower, digit)" style="width:100%;padding:12px;margin-bottom:16px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-size:15px">
+    <button onclick="doSignUp()" class="btn btn-primary" style="width:100%;padding:12px;margin-bottom:12px">Sign Up</button>
+    <p style="text-align:center;color:var(--muted);font-size:14px">Have an account? <a href="#" onclick="showSignIn();return false" style="color:var(--red)">Sign In</a></p>`;
+}
+
+function showSignIn() {
+  document.getElementById('auth-subtitle').textContent = 'Sign in to continue';
+  document.getElementById('auth-error').style.display = 'none';
+  document.getElementById('auth-form').innerHTML = `
+    <input id="auth-email" type="email" placeholder="Email" style="width:100%;padding:12px;margin-bottom:12px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-size:15px">
+    <input id="auth-pass" type="password" placeholder="Password" style="width:100%;padding:12px;margin-bottom:16px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-size:15px">
+    <button onclick="doSignIn()" class="btn btn-primary" style="width:100%;padding:12px;margin-bottom:12px">Sign In</button>
+    <p style="text-align:center;color:var(--muted);font-size:14px">No account? <a href="#" onclick="showSignUp();return false" style="color:var(--red)">Sign Up</a></p>`;
+}
+
+function showConfirm(email) {
+  document.getElementById('auth-subtitle').textContent = 'Check your email for a verification code';
+  document.getElementById('auth-error').style.display = 'none';
+  document.getElementById('auth-form').innerHTML = `
+    <input id="auth-code" type="text" placeholder="Verification code" style="width:100%;padding:12px;margin-bottom:16px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-size:15px">
+    <button onclick="doConfirm('${email}')" class="btn btn-primary" style="width:100%;padding:12px">Confirm</button>`;
+}
+
+function authError(msg) {
+  const el = document.getElementById('auth-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function doSignUp() {
+  const email = document.getElementById('auth-email').value;
+  const pass = document.getElementById('auth-pass').value;
+  if (!email || !pass) return authError('Email and password required');
+  const attrs = [new AmazonCognitoIdentity.CognitoUserAttribute({ Name: 'email', Value: email })];
+  userPool.signUp(email, pass, attrs, null, (err, result) => {
+    if (err) return authError(err.message);
+    showConfirm(email);
+  });
+}
+
+function doConfirm(email) {
+  const code = document.getElementById('auth-code').value;
+  const user = new AmazonCognitoIdentity.CognitoUser({ Username: email, Pool: userPool });
+  user.confirmRegistration(code, true, (err) => {
+    if (err) return authError(err.message);
+    document.getElementById('auth-subtitle').textContent = 'Account confirmed! Sign in now';
+    showSignIn();
+  });
+}
+
+function doSignIn() {
+  const email = document.getElementById('auth-email').value;
+  const pass = document.getElementById('auth-pass').value;
+  if (!email || !pass) return authError('Email and password required');
+  const authDetails = new AmazonCognitoIdentity.AuthenticationDetails({ Username: email, Password: pass });
+  const user = new AmazonCognitoIdentity.CognitoUser({ Username: email, Pool: userPool });
+  user.authenticateUser(authDetails, {
+    onSuccess: (session) => {
+      currentUser = { email, token: session.getIdToken().getJwtToken() };
+      document.getElementById('auth-screen').remove();
+      document.querySelector('.container').style.display = '';
+      document.getElementById('logout-btn').style.display = '';
+      loadReceipts();
+      loadDeals();
+    },
+    onFailure: (err) => authError(err.message),
+  });
+}
+
+function signOut() {
+  if (userPool) {
+    const user = userPool.getCurrentUser();
+    if (user) user.signOut();
+  }
+  currentUser = null;
+  location.reload();
+}
+
+// API helper - adds auth header if in Amplify mode
+async function apiFetch(url, options = {}) {
+  if (CONFIG) {
+    url = CONFIG.API_URL + url;
+    options.headers = { ...options.headers };
+    if (currentUser) {
+      options.headers['Authorization'] = 'Bearer ' + currentUser.token;
+    }
+  }
+  return fetch(url, options);
+}
+
+// PDF helper for Amplify (needs auth header)
+async function openPdf(receiptId) {
+  if (CONFIG) {
+    const response = await apiFetch(`/api/receipt/${receiptId}/pdf`);
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+  } else {
+    window.open(`/api/receipt/${receiptId}/pdf`, '_blank');
+  }
+}
+
+function shortStore(s) {
+  // "COSTCO WHOLESALE 50 Queen Elizabeth Blvd Etobicoke, ON M8Z 1M1" → "Etobicoke"
+  // "Etobicoke #524" → "Etobicoke #524"  (already short)
+  // "Costco Wholesale #624" → "Costco #624"
+  const m = s.match(/#\d+/);
+  const num = m ? ' ' + m[0] : '';
+  // Try to find city name: word before ON/AB/BC/QC or after common patterns
+  const cm = s.match(/,?\s*([A-Za-z]+),?\s+(?:ON|AB|BC|QC|MB|SK|NS|NB|PE|NL)\b/i);
+  if (cm) return cm[1] + num;
+  // If already short (no comma, no postal code), return as-is
+  if (!/\d{3}/.test(s.replace(/#\d+/,'')) && s.length < 30) return s;
+  // Fallback: first meaningful word after "wholesale"
+  const words = s.replace(/costco\s*wholesale/i,'').trim().split(/\s+/);
+  for (const w of words) { if (w.length > 2 && !/^\d/.test(w)) return w + num; }
+  return s;
+}
+
+function setStatus(el, msg, type) {
+  $(el).className = 'status status-' + type;
+  $(el).textContent = msg;
+}
+
+// Drag & drop
+document.addEventListener('DOMContentLoaded', () => {
+  const z = document.querySelector('.upload-zone');
+  ['dragenter','dragover','dragleave','drop'].forEach(e => z.addEventListener(e, ev => { ev.preventDefault(); ev.stopPropagation(); }));
+  ['dragenter','dragover'].forEach(e => z.addEventListener(e, () => z.style.borderColor = 'var(--blue)'));
+  ['dragleave','drop'].forEach(e => z.addEventListener(e, () => z.style.borderColor = ''));
+  z.addEventListener('drop', e => { $('pdfFile').files = e.dataTransfer.files; showFileList(); });
+  $('pdfFile').addEventListener('change', showFileList);
+  document.addEventListener('click', e => { if (!e.target.closest('.multi-select')) closeMultiSelect(); });
+});
+
+function showFileList() {
+  const files = $('pdfFile').files;
+  if (!files.length) { $('uploadFileList').innerHTML = ''; $('uploadLabel').textContent = '📄 Choose PDFs or drag & drop'; return; }
+  $('uploadLabel').textContent = `${files.length} file${files.length>1?'s':''} selected`;
+  $('uploadFileList').innerHTML = [...files].map((f,i) =>
+    `<div class="upload-file" id="uf${i}"><span class="fname">📄 ${f.name}</span><span class="fsize">${(f.size/1024).toFixed(0)} KB</span><div class="fprog"><div class="fprog-bar" id="ufp${i}" style="width:0%"></div></div><span class="fstatus" id="ufs${i}">Pending</span></div>`
+  ).join('');
+}
+
+// Upload multiple files sequentially
+async function uploadReceipts() {
+  const files = $('pdfFile').files;
+  if (!files.length) return alert('Select PDF files first');
+  let ok = 0;
+  for (let i = 0; i < files.length; i++) {
+    const el = document.getElementById('uf'+i);
+    const bar = document.getElementById('ufp'+i);
+    const st = document.getElementById('ufs'+i);
+    st.textContent = '⏳ Parsing...'; st.style.color = 'var(--blue)';
+    bar.style.width = '30%';
+    const fd = new FormData(); fd.append('file', files[i]);
+    try {
+      const r = await apiFetch('/api/upload', {method:'POST', body:fd});
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail);
+      bar.style.width = '100%'; bar.style.background = 'var(--green)';
+      st.textContent = `✅ ${d.parsed_items} items`; st.style.color = 'var(--green)';
+      el.classList.add('done'); ok++;
+    } catch(e) {
+      bar.style.width = '100%'; bar.style.background = 'var(--red)';
+      st.textContent = '❌ ' + e.message; st.style.color = 'var(--red)';
+      el.classList.add('err');
+    }
+  }
+  if (ok) loadReceipts();
+}
+
+// Receipts
+async function loadReceipts() {
+  try {
+    const r = await apiFetch('/api/receipts');
+    const {receipts} = await r.json();
+    $('totalReceipts').style.display = receipts.length ? 'inline' : 'none';
+    $('totalReceipts').textContent = receipts.length + ' receipt' + (receipts.length !== 1 ? 's' : '');
+    
+    // Populate multi-select dropdown (sorted by date)
+    const sorted = [...receipts].sort((a,b) => (a.receipt_date||'').localeCompare(b.receipt_date||''));
+    const dd = $('msDropdown');
+    dd.innerHTML = '<label class="ms-opt all"><input type="checkbox" id="msAll" onchange="msToggleAll(this.checked)" checked><span>All receipts</span></label>';
+    sorted.forEach(rc => {
+      const items = rc.items || [];
+      const total = items.reduce((s, i) => s + (parseFloat(i.price) || 0), 0);
+      dd.innerHTML += `<label class="ms-opt"><input type="checkbox" value="${rc.receipt_id}" onchange="msUpdate()" checked><span>${rc.receipt_date || '?'} — ${shortStore(rc.store || 'Unknown')} (${items.length} items, $${total.toFixed(2)})</span></label>`;
+    });
+    msUpdate();
+
+    if (!receipts.length) { $('receiptsArea').innerHTML = '<div class="empty">📭 No receipts uploaded yet</div>'; return; }
+    
+    receipts.sort((a, b) => (a.receipt_date || '').localeCompare(b.receipt_date || ''));
+    let html = '';
+    receipts.forEach(rc => {
+      const items = rc.items || [];
+      const total = items.reduce((s, i) => s + (parseFloat(i.price) || 0), 0);
+      const store = shortStore(rc.store || 'Unknown');
+      html += `<div class="receipt-card" data-rid="${rc.receipt_id}" onclick="toggleReceipt(this)">
+        <div class="receipt-header">
+          <span class="receipt-title">📋 ${rc.receipt_date || '?'} — ${store}</span>
+          <div class="receipt-stats">
+            <button class="btn icon-btn" onclick="event.stopPropagation();reparseReceipt('${rc.receipt_id}',this)" title="Reparse with Premier AI">🔄</button>
+            <button class="btn icon-btn" onclick="event.stopPropagation();openPdf('${rc.receipt_id}')" title="View PDF">📎</button>
+            <button class="btn icon-btn icon-btn-del" style="color:var(--red)" onclick="event.stopPropagation();deleteReceipt('${rc.receipt_id}')" title="Delete this receipt">✕</button>
+            <div class="receipt-stat"><div class="receipt-stat-val">${items.length}</div><div class="receipt-stat-lbl">Items</div></div>
+            <div class="receipt-stat"><div class="receipt-stat-val">$${total.toFixed(2)}</div><div class="receipt-stat-lbl">Total</div></div>
+          </div>
+        </div>
+        <div class="receipt-items">
+          <table><tr><th>Item</th><th>Item #</th><th>Price</th><th>Qty</th><th></th></tr>`;
+      items.forEach((i, idx) => {
+        const tpd = i.tpd ? `<span style="background:#fff3cd;color:#856404;padding:1px 6px;border-radius:4px;font-size:.72em;font-weight:600;margin-left:4px">TPD</span>` : '';
+        const orig = i.original_price ? `<span style="text-decoration:line-through;color:var(--muted);font-size:.85em;margin-left:4px">$${i.original_price}</span>` : '';
+        html += `<tr class="item-row" onclick="selectRow(this)" data-rid="${rc.receipt_id}" data-idx="${idx}" data-item='${JSON.stringify(i).replace(/'/g,"&#39;")}'>
+          <td>${i.name}${tpd}</td><td class="item-num">${i.item_number||''}</td><td style="font-weight:600;color:var(--green)">$${i.price}${orig}</td><td>${i.qty||1}</td>
+          <td><button class="edit-btn" onclick="event.stopPropagation();editItem(this.parentElement.parentElement)" title="Edit">✏️</button></td></tr>`;
+      });
+      html += '</table></div></div>';
+    });
+    $('receiptsArea').innerHTML = html;
+  } catch(e) { $('receiptsArea').innerHTML = '<div class="empty">❌ Failed to load</div>'; }
+}
+
+function toggleReceipt(el) { el.classList.toggle('expanded'); }
+
+function selectRow(tr) {
+  document.querySelectorAll('tr.item-row.selected').forEach(r => r.classList.remove('selected'));
+  tr.classList.add('selected');
+}
+
+function editItem(tr) {
+  const item = JSON.parse(tr.dataset.item);
+  const rid = tr.dataset.rid, idx = tr.dataset.idx;
+  const ov = document.createElement('div');
+  ov.className = 'edit-overlay';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  ov.innerHTML = `<div class="edit-form">
+    <h3>✏️ Edit Item</h3>
+    <label>Name</label><input id="ed_name" value="${(item.name||'').replace(/"/g,'&quot;')}">
+    <label>Item #</label><input id="ed_num" value="${item.item_number||''}">
+    <label>Price</label><input id="ed_price" value="${item.price||''}">
+    <label>Qty</label><input id="ed_qty" value="${item.qty||'1'}">
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="this.closest('.edit-overlay').remove()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveItem('${rid}',${idx},this)">💾 Save</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.querySelector('#ed_name').focus();
+}
+
+async function saveItem(rid, idx, btn) {
+  btn.disabled = true; btn.textContent = '⏳';
+  const g = id => document.getElementById(id).value;
+  const item = {name:g('ed_name'), item_number:g('ed_num'), price:g('ed_price'), qty:g('ed_qty'),
+    tpd:false, original_price:''};
+  try {
+    const r = await apiFetch(`/api/receipt/${rid}/item/${idx}`, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(item)
+    });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    document.querySelector('.edit-overlay').remove();
+    loadReceipts();
+  } catch(e) { alert('Save failed: '+e.message); btn.disabled=false; btn.textContent='💾 Save'; }
+}
+
+async function reparseReceipt(rid, btn) {
+  btn.textContent = '⏳';
+  btn.disabled = true;
+  try {
+    const r = await apiFetch(`/api/reparse/${rid}`, {method:'POST'});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail);
+    btn.textContent = '✅';
+    loadReceipts();
+  } catch(e) { btn.textContent = '❌'; alert('Reparse failed: ' + e.message); }
+  finally { setTimeout(() => { btn.textContent = '🔄'; btn.disabled = false; }, 2000); }
+}
+
+async function deleteReceipt(rid) {
+  if (!confirm('Delete this receipt?')) return;
+  await apiFetch(`/api/receipt/${rid}`, {method:'DELETE'});
+  loadReceipts();
+}
+
+async function clearReceipts() {
+  if (!confirm('Delete all receipts?')) return;
+  await apiFetch('/api/receipts', {method:'DELETE'});
+  loadReceipts();
+}
+
+// Deals
+async function scanPrices(force = false) {
+  setStatus('priceStatus', '⏳ Scanning 6 sources (coupon book uses AI, ~30s)...', 'load');
+  try {
+    const r = await apiFetch(force ? '/api/scan-prices?force_refresh=true' : '/api/scan-prices', {method:'POST'});
+    const d = await r.json();
+    setStatus('priceStatus', `✅ Found ${d.price_drops} deals`, 'ok');
+    loadDeals();
+  } catch(e) { setStatus('priceStatus', '❌ ' + e.message, 'err'); }
+}
+
+async function loadDeals() {
+  try {
+    const r = await apiFetch('/api/price-drops');
+    const {price_drops} = await r.json();
+    allDeals = price_drops;
+    $('totalDeals').style.display = allDeals.length ? 'inline' : 'none';
+    $('totalDeals').textContent = allDeals.length + ' deals';
+    renderTabs();
+    filterDeals();
+  } catch(e) { $('dealsArea').innerHTML = '<div class="empty">❌ Error</div>'; }
+}
+
+async function clearDeals() {
+  if (!confirm('Delete all deals?')) return;
+  await apiFetch('/api/price-drops', {method:'DELETE'});
+  allDeals = [];
+  renderTabs();
+  renderDeals([]);
+}
+
+async function deleteDeal(itemId, btn) {
+  btn.textContent = '⏳';
+  await apiFetch(`/api/price-drop/${itemId}`, {method:'DELETE'});
+  allDeals = allDeals.filter(d => d.item_id !== itemId);
+  renderTabs();
+  filterDeals();
+}
+
+function renderTabs() {
+  const counts = {};
+  allDeals.forEach(d => { counts[d.source] = (counts[d.source]||0) + 1; });
+  let html = `<span class="tab ${activeTab==='all'?'active':''}" onclick="setTab('all')">All<span class="cnt">${allDeals.length}</span></span>`;
+  Object.entries(counts).sort((a,b) => b[1]-a[1]).forEach(([src, cnt]) => {
+    const label = src.replace('reddit.com/r/','r/').replace('.com','').replace('.ca','');
+    html += `<span class="tab ${activeTab===src?'active':''}" onclick="setTab('${src}')">${label}<span class="cnt">${cnt}</span></span>`;
+  });
+  $('dealTabs').innerHTML = html;
+
+  // Populate analysis source checkboxes
+  const as = $('analysisSources');
+  if (as) {
+    as.innerHTML = Object.keys(counts).sort().map(src => {
+      const label = src.replace('reddit.com/r/','r/').replace('.com','').replace('.ca','');
+      return `<label><input type="checkbox" value="${src}" checked><span>${label}</span></label>`;
+    }).join('');
+  }
+}
+
+function setTab(t) { activeTab = t; renderTabs(); filterDeals(); }
+
+function filterDeals() {
+  const q = ($('dealSearch').value || '').toLowerCase();
+  const df = $('dealDateFrom').value;
+  const dt = $('dealDateTo').value;
+  let f = allDeals;
+  if (activeTab !== 'all') f = f.filter(d => d.source === activeTab);
+  if (q) f = f.filter(d => d.item_name.toLowerCase().includes(q) || (d.item_number||'').includes(q) || d.source.toLowerCase().includes(q));
+  if (df) f = f.filter(d => (d.promo_end || d.scanned_date?.slice(0,10) || '') >= df);
+  if (dt) f = f.filter(d => (d.scanned_date?.slice(0,10) || d.promo_end || '9999') <= dt);
+  $('showingCount').textContent = f.length === allDeals.length ? '' : `Showing ${f.length} of ${allDeals.length}`;
+  renderDeals(f);
+}
+
+function renderDeals(deals) {
+  if (!deals.length) { $('dealsArea').innerHTML = '<div class="empty">🔍 No deals. Click Scan to find some.</div>'; return; }
+  let html = '<div class="deals-grid">';
+  deals.forEach(d => {
+    const link = d.link || '';
+    const name = link ? `<a href="${link}" target="_blank">${d.item_name}</a>` : d.item_name;
+    const exp = d.promo_end ? `<span class="expiry">⏰ ${d.promo_end}</span>` : '';
+    const num = d.item_number ? `<span class="item-num">#${d.item_number}</span>` : '';
+    const src = d.source.replace('reddit.com/r/','r/').replace('.com','').replace('.ca','');
+    html += `<div class="deal" style="position:relative">
+      <button class="deal-del" onclick="deleteDeal('${d.item_id}',this)" title="Remove deal">✕</button>
+      <div class="deal-name">${name}</div>
+      <div class="deal-meta">
+        <span class="price">$${d.sale_price}</span>${num}<span class="source-tag">${src}</span>${exp}
+      </div>
+    </div>`;
+  });
+  $('dealsArea').innerHTML = html + '</div>';
+}
+
+// Multi-select dropdown
+function toggleMultiSelect() { $('receiptMultiSelect').classList.toggle('open'); }
+function closeMultiSelect() { $('receiptMultiSelect').classList.remove('open'); }
+function msToggleAll(checked) {
+  $('msDropdown').querySelectorAll('input:not(#msAll)').forEach(cb => cb.checked = checked);
+  msUpdate();
+}
+function msUpdate() {
+  const all = [...$('msDropdown').querySelectorAll('input:not(#msAll)')];
+  const checked = all.filter(cb => cb.checked);
+  $('msAll').checked = checked.length === all.length;
+  if (checked.length === 0 || checked.length === all.length) $('msLabel').textContent = 'All receipts';
+  else $('msLabel').textContent = `${checked.length} of ${all.length} receipts`;
+}
+function getSelectedReceiptIds() {
+  const all = [...$('msDropdown').querySelectorAll('input:not(#msAll)')];
+  const checked = all.filter(cb => cb.checked);
+  if (checked.length === 0 || checked.length === all.length) return null; // all
+  return checked.map(cb => cb.value);
+}
+
+// Analysis
+async function runAnalysis() {
+  const ids = getSelectedReceiptIds();
+  const label = ids ? `${ids.length} receipt${ids.length>1?'s':''}` : 'all receipts';
+  setStatus('analysisStatus', `⏳ Analyzing ${label}...`, 'load');
+  $('analysis').innerHTML = '<div style="color:var(--muted);font-size:.85em" id="streamStatus">🔄 Starting agent...</div><div id="streamText"></div>';
+
+  const params = new URLSearchParams();
+  if (ids) params.set('receipt_ids', ids.join(','));
+  const df = $('analysisDateFrom').value;
+  const dt = $('analysisDateTo').value;
+  if (df) params.set('date_from', df);
+  if (dt) params.set('date_to', dt);
+  const checked = [...document.querySelectorAll('#analysisSources input:checked')].map(c => c.value);
+  const allSrcs = [...document.querySelectorAll('#analysisSources input')];
+  if (checked.length && checked.length < allSrcs.length) params.set('sources', checked.join(','));
+  const url = '/api/analyze?' + params.toString();
+  
+  // Use fetch-based SSE for Amplify compatibility (auth headers)
+  if (CONFIG) {
+    const response = await apiFetch(url);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = '';
+    
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      
+      const chunk = decoder.decode(value);
+      const lines = chunk.split('\n');
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6);
+          if (data.trim()) {
+            const msg = JSON.parse(data);
+            if (msg.type === 'chunk') {
+              fullText += msg.text;
+              $('streamText').innerHTML = renderMarkdown(fullText);
+              const ss = $('streamStatus');
+              if (ss) ss.remove();
+            } else if (msg.type === 'tool') {
+              fullText = '';
+              const st = $('streamText');
+              if (st) st.innerHTML = '';
+              const ss = $('streamStatus');
+              if (ss) ss.textContent = `🔧 Calling ${msg.name}...`;
+            } else if (msg.type === 'done') {
+              $('analysis').innerHTML = renderMarkdown(msg.text);
+              let statusHtml = '✅ Analysis complete';
+              $('analysisStatus').className = 'status status-ok';
+              $('analysisStatus').innerHTML = statusHtml;
+              return;
+            } else if (msg.type === 'error') {
+              setStatus('analysisStatus', '❌ ' + msg.text, 'err');
+              return;
+            }
+          }
+        }
+      }
+    }
+  } else {
+    // Local mode - use EventSource
+    const es = new EventSource(url);
+    let fullText = '';
+
+    es.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'chunk') {
+        fullText += msg.text;
+        $('streamText').innerHTML = renderMarkdown(fullText);
+        const ss = $('streamStatus');
+        if (ss) ss.remove();
+      } else if (msg.type === 'tool') {
+        fullText = '';
+        const st = $('streamText');
+        if (st) st.innerHTML = '';
+        const ss = $('streamStatus');
+        if (ss) ss.textContent = `🔧 Calling ${msg.name}...`;
+      } else if (msg.type === 'done') {
+        es.close();
+        $('analysis').innerHTML = renderMarkdown(msg.text);
+        let statusHtml = '✅ Analysis complete';
+        $('analysisStatus').className = 'status status-ok';
+        $('analysisStatus').innerHTML = statusHtml;
+      } else if (msg.type === 'error') {
+        es.close();
+        setStatus('analysisStatus', '❌ ' + msg.text, 'err');
+      }
+    };
+    es.onerror = () => { es.close(); if (!fullText) setStatus('analysisStatus', '❌ Connection lost', 'err'); };
+  }
+}
+
+function renderMarkdown(md) {
+  const lines = md.split('\n');
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (/^\|[\s\-:|]+\|$/.test(lines[i].trim())) continue;
+    if (lines[i].trim() === '') {
+      let next = lines.slice(i+1).find(l => l.trim() !== '');
+      if (next && /^\|/.test(next.trim())) continue;
+      if (out.length && /^\|/.test(out[out.length-1])) continue;
+    }
+    out.push(lines[i]);
+  }
+  md = out.join('\n');
+
+  let inTable = false;
+  return md
+    .replace(/^(.*)$/gm, line => {
+      const trimmed = line.trim();
+      if (/^\|.+\|$/.test(trimmed)) {
+        const cells = trimmed.split('|').filter(c=>c.trim());
+        if (!inTable) {
+          inTable = true;
+          return '<table style="width:100%;border-collapse:collapse;margin:4px 0"><thead><tr>' +
+            cells.map(c=>`<th style="padding:8px 10px;text-align:left;background:var(--bg);font-weight:600;font-size:.8em;text-transform:uppercase;color:var(--gray);border-bottom:2px solid var(--border)">${c.trim()}</th>`).join('') +
+            '</tr></thead><tbody>';
+        }
+        return '<tr>' + cells.map(c => {
+          let v = c.trim();
+          if (/^\[.+\]\(.+\)$/.test(v)) {
+            const m = v.match(/^\[(.+)\]\((.+)\)$/);
+            v = `<a href="${m[2]}" target="_blank" style="color:var(--blue)">${m[1]}</a>`;
+          } else if (/^[0-9a-f]{8}-[0-9a-f]{4}/.test(v)) {
+            v = `<button onclick="openPdf('${v}')" style="background:none;border:none;color:var(--blue);cursor:pointer" title="View receipt">📎</button>`;
+          } else if (/^\$[\d.]+$/.test(v)) v = `<span style="font-weight:600">${v}</span>`;
+          return `<td style="padding:6px 10px;border-bottom:1px solid var(--border)">${v}</td>`;
+        }).join('') + '</tr>';
+      }
+      if (inTable) { inTable = false; return '</tbody></table>' + line; }
+      return line;
+    })
+    .replace(/### (.+)/g, '<h3 style="margin:12px 0 6px;font-size:1em">$1</h3>')
+    .replace(/## (.+)/g, '<h2 style="margin:14px 0 8px;font-size:1.1em">$1</h2>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color:var(--blue);text-decoration:none">$1</a>')
+    .replace(/> (.+)/g, '<blockquote style="border-left:3px solid var(--blue);padding:8px 12px;margin:8px 0;background:#f8f9ff;border-radius:0 6px 6px 0;font-size:.88em">$1</blockquote>')
+    .replace(/\n/g, '<br>')
+    .replace(/(<br>\s*){2,}/g, '<br>');
+}
+
+// Init
+loadReceipts();
+loadDeals();
+</script>
+</body>
+</html>
