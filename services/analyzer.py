@@ -34,11 +34,11 @@ def _filter_deals(drops: list) -> list:
 
 @tool
 def get_receipt_items() -> str:
-    """Fetch items from the selected receipt (or all receipts if none selected)."""
+    """Fetch items from the selected receipt (or last 30 days of receipts if none selected)."""
     if _target_receipt_ids:
         receipts = [r for r in [db.get_receipt(rid) for rid in _target_receipt_ids] if r]
     else:
-        receipts = db.get_all_receipts()
+        receipts = db.get_recent_receipts(30)
     if not receipts:
         return "No receipts found. Please upload a receipt first."
     items = []
@@ -76,7 +76,7 @@ def find_potential_matches() -> str:
     if _target_receipt_ids:
         receipts = [r for r in [db.get_receipt(rid) for rid in _target_receipt_ids] if r]
     else:
-        receipts = db.get_all_receipts()
+        receipts = db.get_recent_receipts(30)
     drops = _filter_deals(db.get_all_price_drops())
     if not receipts or not drops:
         return "Need both receipts and price drops."

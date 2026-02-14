@@ -54,6 +54,14 @@ def get_all_receipts() -> list:
     return _ddb.Table(RECEIPTS_TABLE).scan()["Items"]
 
 
+def get_recent_receipts(days: int = 30) -> list:
+    """Get receipts from the last N days only."""
+    from datetime import timedelta
+    cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    items = _ddb.Table(RECEIPTS_TABLE).scan()["Items"]
+    return [r for r in items if r.get("date", r.get("upload_date", "")) >= cutoff]
+
+
 def get_receipt(receipt_id: str) -> dict | None:
     resp = _ddb.Table(RECEIPTS_TABLE).get_item(Key={"receipt_id": receipt_id})
     return resp.get("Item")
