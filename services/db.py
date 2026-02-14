@@ -59,7 +59,7 @@ def get_recent_receipts(days: int = 30) -> list:
     from datetime import timedelta
     cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
     items = _ddb.Table(RECEIPTS_TABLE).scan()["Items"]
-    return [r for r in items if r.get("date", r.get("upload_date", "")) >= cutoff]
+    return [r for r in items if r.get("receipt_date", r.get("upload_date", ""))[:10] >= cutoff]
 
 
 def get_receipt(receipt_id: str) -> dict | None:
