@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 import re
 import random
 import time
+from datetime import datetime
 import json
 import os
 import boto3
@@ -362,11 +363,15 @@ def scan_price_drops(force_refresh: bool = False) -> list:
         time.sleep(1)  # Rate limit
 
     # Deduplicate by normalized name
+    today = datetime.now().strftime("%Y-%m-%d")
     seen = set()
     saved = []
     for deal in all_deals:
-        key = (deal["item_name"].lower().strip(), deal.get("promo_end", ""))
-        if key not in seen and not db.item_exists(deal["item_name"], deal["source"], deal.get("promo_end", "")):
+        promo_end = deal.get("promo_end", "")
+        if promo_end and promo_end < today:
+            continue  # Skip expired deals
+        key = (deal["item_name"].lower().strip(), promo_end)
+        if key not in seen and not db.item_exists(deal["item_name"], deal["source"], promo_end):
             seen.add(key)
             saved.append(db.put_price_drop(**deal))
 

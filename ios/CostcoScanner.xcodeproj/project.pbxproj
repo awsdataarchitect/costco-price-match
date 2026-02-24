@@ -1,0 +1,360 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 63;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0671248FB42653F5EAD6A630 /* ReceiptsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D86A38C491A131E12A3E1419 /* ReceiptsView.swift */; };
+		09C2AB56350717A8DAA80466 /* BackendConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB7C2CC8501793FBD711DBC9 /* BackendConfig.swift */; };
+		0EBFA1432631C116AD9EC721 /* DealsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A7FE54CA4CBD40C13E8DDD /* DealsView.swift */; };
+		210580603758EA0A2678CD38 /* CostcoScannerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE9CC0E0FB8008E70E678A04 /* CostcoScannerApp.swift */; };
+		3AD983BF17E2B2A30A1F559A /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22B60F1CEA98D0C254E6D858 /* MainTabView.swift */; };
+		3FEBA299A4E5A9A65B5E4D92 /* ReceiptDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24AA0897C0520254347062CD /* ReceiptDetailView.swift */; };
+		5332FF843B07FE3C78B776DD /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EF7D93E3FAC7A10AB1A6ED1 /* SettingsView.swift */; };
+		6DF6BF476FB2A8287795F344 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 292F372D7266D29C670B4B74 /* APIClient.swift */; };
+		7673EDE4C5599E4E3CA4F04F /* AnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726A94417B3574DCF30C9F29 /* AnalysisView.swift */; };
+		924C3315E5E19ACD34F6E19B /* PDFViewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76577F57E35C900FA7A4C57B /* PDFViewer.swift */; };
+		CDBE580F808732A0C3DCFC0B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E6D4CEDA3E5283E3E7EFCA86 /* Assets.xcassets */; };
+		FD1565297906087A674FB5B9 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 026449780C1CFA7A76AA48B1 /* Models.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		026449780C1CFA7A76AA48B1 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		0AAA232D9BFAD503E9F0A04F /* CostcoScanner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CostcoScanner.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		22B60F1CEA98D0C254E6D858 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		24AA0897C0520254347062CD /* ReceiptDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiptDetailView.swift; sourceTree = "<group>"; };
+		292F372D7266D29C670B4B74 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		2EF7D93E3FAC7A10AB1A6ED1 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		42D73BCFD22DB0C00B26CABA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		726A94417B3574DCF30C9F29 /* AnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisView.swift; sourceTree = "<group>"; };
+		76577F57E35C900FA7A4C57B /* PDFViewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFViewer.swift; sourceTree = "<group>"; };
+		C7A7FE54CA4CBD40C13E8DDD /* DealsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DealsView.swift; sourceTree = "<group>"; };
+		D86A38C491A131E12A3E1419 /* ReceiptsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiptsView.swift; sourceTree = "<group>"; };
+		DB7C2CC8501793FBD711DBC9 /* BackendConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendConfig.swift; sourceTree = "<group>"; };
+		E6D4CEDA3E5283E3E7EFCA86 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		EE9CC0E0FB8008E70E678A04 /* CostcoScannerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CostcoScannerApp.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		49272A684D75011CB2ED20AA /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				726A94417B3574DCF30C9F29 /* AnalysisView.swift */,
+				C7A7FE54CA4CBD40C13E8DDD /* DealsView.swift */,
+				22B60F1CEA98D0C254E6D858 /* MainTabView.swift */,
+				76577F57E35C900FA7A4C57B /* PDFViewer.swift */,
+				24AA0897C0520254347062CD /* ReceiptDetailView.swift */,
+				D86A38C491A131E12A3E1419 /* ReceiptsView.swift */,
+				2EF7D93E3FAC7A10AB1A6ED1 /* SettingsView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		7CA12C5C285183AA78E7CFE6 = {
+			isa = PBXGroup;
+			children = (
+				D5508CCF0D2A9C727D98CBC6 /* CostcoScanner */,
+				F28681E1160DD086001F8F7F /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D5508CCF0D2A9C727D98CBC6 /* CostcoScanner */ = {
+			isa = PBXGroup;
+			children = (
+				292F372D7266D29C670B4B74 /* APIClient.swift */,
+				E6D4CEDA3E5283E3E7EFCA86 /* Assets.xcassets */,
+				DB7C2CC8501793FBD711DBC9 /* BackendConfig.swift */,
+				EE9CC0E0FB8008E70E678A04 /* CostcoScannerApp.swift */,
+				42D73BCFD22DB0C00B26CABA /* Info.plist */,
+				026449780C1CFA7A76AA48B1 /* Models.swift */,
+				49272A684D75011CB2ED20AA /* Views */,
+			);
+			path = CostcoScanner;
+			sourceTree = "<group>";
+		};
+		F28681E1160DD086001F8F7F /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				0AAA232D9BFAD503E9F0A04F /* CostcoScanner.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A67A9DAFBC1A54BE035022DE /* CostcoScanner */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 41645E800A3C6290B9FB9182 /* Build configuration list for PBXNativeTarget "CostcoScanner" */;
+			buildPhases = (
+				1AB38753804B51B3C6434797 /* Sources */,
+				85BA8DD837EF9E3C7FB2C6CB /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CostcoScanner;
+			packageProductDependencies = (
+			);
+			productName = CostcoScanner;
+			productReference = 0AAA232D9BFAD503E9F0A04F /* CostcoScanner.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		9A19B051CB83B0E32406E122 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+			};
+			buildConfigurationList = AFBC322A8B968DDF20C5811F /* Build configuration list for PBXProject "CostcoScanner" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 7CA12C5C285183AA78E7CFE6;
+			minimizedProjectReferenceProxies = 1;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A67A9DAFBC1A54BE035022DE /* CostcoScanner */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		85BA8DD837EF9E3C7FB2C6CB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CDBE580F808732A0C3DCFC0B /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		1AB38753804B51B3C6434797 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6DF6BF476FB2A8287795F344 /* APIClient.swift in Sources */,
+				7673EDE4C5599E4E3CA4F04F /* AnalysisView.swift in Sources */,
+				09C2AB56350717A8DAA80466 /* BackendConfig.swift in Sources */,
+				210580603758EA0A2678CD38 /* CostcoScannerApp.swift in Sources */,
+				0EBFA1432631C116AD9EC721 /* DealsView.swift in Sources */,
+				3AD983BF17E2B2A30A1F559A /* MainTabView.swift in Sources */,
+				FD1565297906087A674FB5B9 /* Models.swift in Sources */,
+				924C3315E5E19ACD34F6E19B /* PDFViewer.swift in Sources */,
+				3FEBA299A4E5A9A65B5E4D92 /* ReceiptDetailView.swift in Sources */,
+				0671248FB42653F5EAD6A630 /* ReceiptsView.swift in Sources */,
+				5332FF843B07FE3C78B776DD /* SettingsView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		2260E5AE7B16676EB6DF9D01 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		9BFDC00E0D00719A142D83DA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		CCBB451006F167449C8C3DCE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JVFBQQ5Y56;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = CostcoScanner/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = CostScanner;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.costcoscanner.app;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F17FF1BFB2E2172425D071A5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JVFBQQ5Y56;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = CostcoScanner/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = CostScanner;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.costcoscanner.app;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		41645E800A3C6290B9FB9182 /* Build configuration list for PBXNativeTarget "CostcoScanner" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CCBB451006F167449C8C3DCE /* Debug */,
+				F17FF1BFB2E2172425D071A5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		AFBC322A8B968DDF20C5811F /* Build configuration list for PBXProject "CostcoScanner" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2260E5AE7B16676EB6DF9D01 /* Debug */,
+				9BFDC00E0D00719A142D83DA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 9A19B051CB83B0E32406E122 /* Project object */;
+}

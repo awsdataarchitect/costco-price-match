@@ -50,6 +50,8 @@ def get_receipt_items() -> str:
                 "qty": item.get("qty", "1"),
                 "item_number": item.get("item_number", ""),
                 "receipt_date": r.get("receipt_date", ""),
+                "tpd": item.get("tpd", False),
+                "original_price": item.get("original_price", ""),
             })
     return json.dumps(items)
 
@@ -122,7 +124,7 @@ def find_potential_matches() -> str:
             try:
                 paid = float(ri["price"])
                 deal = float(d["sale_price"])
-                if deal > paid:
+                if deal >= paid:
                     continue
                 savings = round(paid - deal, 2)
             except (ValueError, TypeError):
@@ -161,7 +163,7 @@ SYSTEM_PROMPT = """You are a Costco price match analyst.
 
 1. Use find_potential_matches to get pre-filtered candidates.
 2. Verify which are real matches. Discard false positives (e.g. "ORGANIC DALA" ≠ "Organika").
-3. Use get_receipt_items or get_current_price_drops only if needed for context.
+3. ALWAYS call get_receipt_items to find items with tpd=true for the TPD table.
 
 Match types:
 - exact_item_number: Always valid
@@ -179,7 +181,7 @@ Present as TWO MARKDOWN TABLES, sorted by Date (newest first). Use EXACTLY this 
 ## 💰 Price Adjustment Opportunities
 
 | Item | Item # | Date | Paid | Sale Price | Savings | Source |
-(rows where savings > $0)
+(rows where savings > $0 AND tpd_at_purchase is false. Do NOT include items where tpd_at_purchase is true here — those go in the TPD table below even if they have further savings.)
 
 **💰 Potential Savings: $X.XX**
 
@@ -188,7 +190,7 @@ Present as TWO MARKDOWN TABLES, sorted by Date (newest first). Use EXACTLY this 
 ## ✅ Already Applied (TPD on Receipt)
 
 | Item | Item # | Date | Original | Paid (TPD) | TPD Savings | Source |
-(rows where savings = $0 and tpd_at_purchase = true. Original = original_price, Paid = price, TPD Savings = original_price - price)
+(List ALL receipt items where tpd=true from get_receipt_items. These are NOT from find_potential_matches. Original = original_price, Paid = price, TPD Savings = original_price - price. Source = leave empty or use deal source if matched.)
 
 **🎉 Already Saved: $X.XX**
 

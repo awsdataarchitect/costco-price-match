@@ -20,6 +20,7 @@ const commonStack = new CommonStack(app, 'CostcoScannerCommon', { env });
 const amplifyStack = new AmplifyStack(app, 'CostcoScannerAmplify', {
   env,
   commonStack,
+  notifyEmail,
 });
 
 // AgentCore Runtime (weekly scan + SES email)

@@ -6,11 +6,14 @@ import * as integrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import * as authorizers from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as amplify from '@aws-cdk/aws-amplify-alpha';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as cr from 'aws-cdk-lib/custom-resources';
 import { Construct } from 'constructs';
 import { CommonStack } from './common-stack';
 
 interface AmplifyStackProps extends cdk.StackProps {
   commonStack: CommonStack;
+  notifyEmail?: string;
 }
 
 export class AmplifyStack extends cdk.Stack {
@@ -61,6 +64,64 @@ export class AmplifyStack extends cdk.Stack {
         userPassword: true,
       },
     });
+
+    // Default user credentials in Secrets Manager
+    const defaultPassword = 'CostScanner2026!';
+    const defaultEmail = props.notifyEmail || 'admin@costscanner.local';
+
+    const appSecret = new secretsmanager.Secret(this, 'AppCredentials', {
+      secretName: 'costco-scanner/app-credentials',
+      secretStringValue: cdk.SecretValue.unsafePlainText(JSON.stringify({
+        username: defaultEmail,
+        password: defaultPassword,
+      })),
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    // Create default Cognito user via custom resource
+    const createUser = new cr.AwsCustomResource(this, 'CreateDefaultUser', {
+      onCreate: {
+        service: 'CognitoIdentityServiceProvider',
+        action: 'adminCreateUser',
+        parameters: {
+          UserPoolId: this.userPool.userPoolId,
+          Username: defaultEmail,
+          TemporaryPassword: defaultPassword,
+          UserAttributes: [{ Name: 'email', Value: defaultEmail }, { Name: 'email_verified', Value: 'true' }],
+          MessageAction: 'SUPPRESS',
+        },
+        physicalResourceId: cr.PhysicalResourceId.of('default-user'),
+        ignoreErrorCodesMatching: 'UsernameExistsException',
+      },
+      policy: cr.AwsCustomResourcePolicy.fromStatements([
+        new iam.PolicyStatement({
+          actions: ['cognito-idp:AdminCreateUser'],
+          resources: [this.userPool.userPoolArn],
+        }),
+      ]),
+    });
+
+    // Set permanent password
+    const setPassword = new cr.AwsCustomResource(this, 'SetDefaultPassword', {
+      onCreate: {
+        service: 'CognitoIdentityServiceProvider',
+        action: 'adminSetUserPassword',
+        parameters: {
+          UserPoolId: this.userPool.userPoolId,
+          Username: defaultEmail,
+          Password: defaultPassword,
+          Permanent: true,
+        },
+        physicalResourceId: cr.PhysicalResourceId.of('default-user-password'),
+      },
+      policy: cr.AwsCustomResourcePolicy.fromStatements([
+        new iam.PolicyStatement({
+          actions: ['cognito-idp:AdminSetUserPassword'],
+          resources: [this.userPool.userPoolArn],
+        }),
+      ]),
+    });
+    setPassword.node.addDependency(createUser);
 
     // Lambda IAM role
     const lambdaRole = new iam.Role(this, 'LambdaRole', {
@@ -151,14 +212,20 @@ export class AmplifyStack extends cdk.Stack {
         DYNAMODB_RECEIPTS_TABLE: commonStack.receiptsTable.tableName,
         DYNAMODB_PRICE_DROPS_TABLE: commonStack.priceDropsTable.tableName,
         S3_BUCKET: commonStack.receiptsBucket.bucketName,
+        USER_POOL_ID: this.userPool.userPoolId,
+        USER_POOL_CLIENT_ID: this.webAppClient.userPoolClientId,
+        APP_SECRET_ARN: appSecret.secretArn,
       },
     });
+
+    // Grant Lambda access to Secrets Manager
+    appSecret.grantRead(this.lambdaFunction);
 
     // JWT Authorizer
     const jwtAuthorizer = new authorizers.HttpJwtAuthorizer('JwtAuthorizer', 
       `https://cognito-idp.${this.region}.amazonaws.com/${this.userPool.userPoolId}`,
       {
-        jwtAudience: [this.webAppClient.userPoolClientId],
+        jwtAudience: [this.webAppClient.userPoolClientId, this.iosAppClient.userPoolClientId],
       }
     );
 
@@ -181,6 +248,13 @@ export class AmplifyStack extends cdk.Stack {
       methods: [apigateway.HttpMethod.ANY],
       integration: lambdaIntegration,
       authorizer: jwtAuthorizer,
+    });
+
+    // Unauthenticated config endpoint for iOS BYOI flow
+    this.httpApi.addRoutes({
+      path: '/api/config',
+      methods: [apigateway.HttpMethod.GET],
+      integration: lambdaIntegration,
     });
 
     // OPTIONS route without auth (CORS preflight)
