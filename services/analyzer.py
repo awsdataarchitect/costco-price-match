@@ -12,153 +12,6 @@ model = BedrockModel(
     boto_client_config=Config(read_timeout=300),
 )
 
-# Module-level state for filtering
-_target_receipt_ids = None
-_date_from = None
-_date_to = None
-_sources = None
-
-
-def _filter_deals(drops: list) -> list:
-    """Filter deals by date range and sources."""
-    filtered = drops
-    if _sources:
-        src_set = set(_sources)
-        filtered = [d for d in filtered if d.get("source", "") in src_set]
-    if _date_from:
-        filtered = [d for d in filtered if (d.get("promo_end") or d.get("scanned_date", "")[:10]) >= _date_from]
-    if _date_to:
-        filtered = [d for d in filtered if (d.get("scanned_date", "")[:10] or d.get("promo_end", "9999")) <= _date_to]
-    return filtered
-
-
-@tool
-def get_receipt_items() -> str:
-    """Fetch items from the selected receipt (or last 30 days of receipts if none selected)."""
-    if _target_receipt_ids:
-        receipts = [r for r in [db.get_receipt(rid) for rid in _target_receipt_ids] if r]
-    else:
-        receipts = db.get_recent_receipts(30)
-    if not receipts:
-        return "No receipts found. Please upload a receipt first."
-    items = []
-    for r in receipts:
-        for item in r.get("items", []):
-            items.append({
-                "name": item["name"],
-                "price": item["price"],
-                "qty": item.get("qty", "1"),
-                "item_number": item.get("item_number", ""),
-                "receipt_date": r.get("receipt_date", ""),
-                "tpd": item.get("tpd", False),
-                "original_price": item.get("original_price", ""),
-            })
-    return json.dumps(items)
-
-
-@tool
-def get_current_price_drops() -> str:
-    """Fetch all current Costco price drops / deals from DynamoDB."""
-    drops = _filter_deals(db.get_all_price_drops())
-    if not drops:
-        return "No price drops found. Please run the price scanner first."
-    return json.dumps([{
-        "item_name": d["item_name"],
-        "item_number": d.get("item_number", ""),
-        "sale_price": d["sale_price"],
-        "original_price": d["original_price"],
-        "promo_end": d.get("promo_end", ""),
-        "source": d.get("source", ""),
-    } for d in drops])
-
-
-@tool
-def find_potential_matches() -> str:
-    """Pre-filter: find deals matching receipt items by item number or name keywords."""
-    if _target_receipt_ids:
-        receipts = [r for r in [db.get_receipt(rid) for rid in _target_receipt_ids] if r]
-    else:
-        receipts = db.get_recent_receipts(30)
-    drops = _filter_deals(db.get_all_price_drops())
-    if not receipts or not drops:
-        return "Need both receipts and price drops."
-
-    receipt_items = []
-    for r in receipts:
-        for item in r.get("items", []):
-            receipt_items.append({
-                "name": item["name"],
-                "price": item["price"],
-                "original_price": item.get("original_price", ""),
-                "item_number": item.get("item_number", ""),
-                "receipt_date": r.get("receipt_date", ""),
-                "tpd": item.get("tpd", False),
-            })
-
-    skip_words = {"the", "and", "for", "with", "pack", "size", "sizes", "plus", "mens", "womens"}
-    candidates = []
-    for ri_idx, ri in enumerate(receipt_items):
-        ri_num = ri["item_number"]
-        ri_words = [w for w in ri["name"].lower().replace("/", " ").split()
-                    if len(w) >= 4 and w not in skip_words]
-
-        ri_matches = []
-        for d in drops:
-            d_num = d.get("item_number", "")
-            d_name = d["item_name"].lower()
-            matched_by = None
-
-            if ri_num and d_num and ri_num == d_num:
-                matched_by = "exact_item_number"
-            elif ri_num and d_num and len(ri_num) >= 5 and len(d_num) >= 5 and ri_num[:5] == d_num[:5]:
-                matched_by = "partial_item_number"
-            elif len(ri_words) >= 2 and sum(1 for w in ri_words if w in d_name) >= 2:
-                matched_by = "name_keyword"
-            elif len(ri_words) == 1 and len(ri_words[0]) >= 5 and ri_words[0] in d_name:
-                matched_by = "name_keyword"
-
-            if not matched_by:
-                continue
-
-            # Only include if deal price <= what was paid (exclude deals that cost MORE)
-            try:
-                paid = float(ri["price"])
-                deal = float(d["sale_price"])
-                if deal >= paid:
-                    continue
-                savings = round(paid - deal, 2)
-            except (ValueError, TypeError):
-                continue
-
-            match_rank = {"exact_item_number": 3, "partial_item_number": 2, "name_keyword": 1}
-            ri_matches.append({
-                "receipt_item": ri["name"],
-                "receipt_price": ri["price"],
-                "original_price": ri.get("original_price", ""),
-                "receipt_item_number": ri_num,
-                "receipt_date": ri["receipt_date"],
-                "tpd_at_purchase": ri["tpd"],
-                "deal_name": d["item_name"],
-                "deal_price": d["sale_price"],
-                "deal_item_number": d_num,
-                "deal_source": d.get("source", ""),
-                "deal_link": d.get("link", ""),
-                "deal_expiry": d.get("promo_end", ""),
-                "matched_by": matched_by,
-                "savings": savings,
-                "_rank": match_rank.get(matched_by, 0),
-            })
-
-        # Keep only the best match per receipt item instance
-        if ri_matches:
-            best = max(ri_matches, key=lambda m: (m["savings"], m["_rank"]))
-            del best["_rank"]
-            candidates.append(best)
-
-    candidates.sort(key=lambda m: m.get("receipt_date", ""))
-    return json.dumps(candidates) if candidates else "No potential matches found."
-
-
 SYSTEM_PROMPT = """You are a Costco price match analyst.
 
 1. Use find_potential_matches to get pre-filtered candidates.
@@ -244,39 +97,26 @@ def _inject_receipt_links(text: str, lookup: dict) -> str:
     return "\n".join(out)
 
 
-def run_analysis(receipt_ids: list = None) -> str:
-    """Run analysis for specific receipts or all receipts."""
-    global _target_receipt_ids
-    _target_receipt_ids = receipt_ids
-    try:
-        prompt = "Analyze my Costco receipt against current price drops and show all price match opportunities."
-        if receipt_ids:
-            prompt = f"Analyze receipts {', '.join(receipt_ids)} against current price drops and show all price match opportunities."
-        a = Agent(
-            model=model,
-            system_prompt=SYSTEM_PROMPT,
-            tools=[get_receipt_items, get_current_price_drops, find_potential_matches],
-        )
-        result = a(prompt)
-        text = str(result)
-        while "\n\n\n" in text:
-            text = text.replace("\n\n\n", "\n\n")
-        lookup = _build_receipt_lookup()
-        text = _inject_receipt_links(text, lookup)
-        return text.strip()
-    finally:
-        _target_receipt_ids = None
-
-
 def run_analysis_stream(receipt_ids=None, date_from=None, date_to=None, sources=None):
     """Streaming generator: yields SSE events as agent produces output."""
     import queue, threading
 
-    global _target_receipt_ids, _date_from, _date_to, _sources
-    _target_receipt_ids = receipt_ids
-    _date_from = date_from
-    _date_to = date_to
-    _sources = sources
+    # Capture state in closure (not module-level globals) for thread safety
+    target_receipt_ids = receipt_ids
+    filter_date_from = date_from
+    filter_date_to = date_to
+    filter_sources = sources
+
+    def _get_filtered_deals():
+        drops = db.get_all_price_drops()
+        if filter_sources:
+            src_set = set(filter_sources)
+            drops = [d for d in drops if d.get("source", "") in src_set]
+        if filter_date_from:
+            drops = [d for d in drops if (d.get("promo_end") or d.get("scanned_date", "")[:10]) >= filter_date_from]
+        if filter_date_to:
+            drops = [d for d in drops if (d.get("scanned_date", "")[:10] or d.get("promo_end", "9999")) <= filter_date_to]
+        return drops
 
     q = queue.Queue()
 
@@ -291,32 +131,148 @@ def run_analysis_stream(receipt_ids=None, date_from=None, date_to=None, sources=
 
     def run():
         try:
+            # Define tools as closures so they use captured state, not globals
+            @tool
+            def get_receipt_items_local() -> str:
+                """Fetch items from the selected receipt (or last 30 days of receipts if none selected)."""
+                if target_receipt_ids:
+                    receipts = [r for r in [db.get_receipt(rid) for rid in target_receipt_ids] if r]
+                else:
+                    receipts = db.get_recent_receipts(30)
+                if not receipts:
+                    return "No receipts found. Please upload a receipt first."
+                items = []
+                for r in receipts:
+                    for item in r.get("items", []):
+                        items.append({
+                            "name": item["name"],
+                            "price": item["price"],
+                            "qty": item.get("qty", "1"),
+                            "item_number": item.get("item_number", ""),
+                            "receipt_date": r.get("receipt_date", ""),
+                            "tpd": item.get("tpd", False),
+                            "original_price": item.get("original_price", ""),
+                        })
+                return json.dumps(items)
+
+            @tool
+            def get_current_price_drops_local() -> str:
+                """Fetch all current Costco price drops / deals from DynamoDB."""
+                drops = _get_filtered_deals()
+                if not drops:
+                    return "No price drops found. Please run the price scanner first."
+                return json.dumps([{
+                    "item_name": d["item_name"],
+                    "item_number": d.get("item_number", ""),
+                    "sale_price": d["sale_price"],
+                    "original_price": d["original_price"],
+                    "promo_end": d.get("promo_end", ""),
+                    "source": d.get("source", ""),
+                } for d in drops])
+
+            @tool
+            def find_potential_matches_local() -> str:
+                """Pre-filter: find deals matching receipt items by item number or name keywords."""
+                if target_receipt_ids:
+                    receipts = [r for r in [db.get_receipt(rid) for rid in target_receipt_ids] if r]
+                else:
+                    receipts = db.get_recent_receipts(30)
+                drops = _get_filtered_deals()
+                if not receipts or not drops:
+                    return "Need both receipts and price drops."
+
+                receipt_items = []
+                for r in receipts:
+                    for item in r.get("items", []):
+                        receipt_items.append({
+                            "name": item["name"],
+                            "price": item["price"],
+                            "original_price": item.get("original_price", ""),
+                            "item_number": item.get("item_number", ""),
+                            "receipt_date": r.get("receipt_date", ""),
+                            "tpd": item.get("tpd", False),
+                        })
+
+                skip_words = {"the", "and", "for", "with", "pack", "size", "sizes", "plus", "mens", "womens"}
+                candidates = []
+                for ri in receipt_items:
+                    ri_num = ri["item_number"]
+                    ri_words = [w for w in ri["name"].lower().replace("/", " ").split()
+                                if len(w) >= 4 and w not in skip_words]
+                    ri_matches = []
+                    for d in drops:
+                        d_num = d.get("item_number", "")
+                        d_name = d["item_name"].lower()
+                        matched_by = None
+                        if ri_num and d_num and ri_num == d_num:
+                            matched_by = "exact_item_number"
+                        elif ri_num and d_num and len(ri_num) >= 5 and len(d_num) >= 5 and ri_num[:5] == d_num[:5]:
+                            matched_by = "partial_item_number"
+                        elif len(ri_words) >= 2 and sum(1 for w in ri_words if w in d_name) >= 2:
+                            matched_by = "name_keyword"
+                        elif len(ri_words) == 1 and len(ri_words[0]) >= 5 and ri_words[0] in d_name:
+                            matched_by = "name_keyword"
+                        if not matched_by:
+                            continue
+                        try:
+                            paid = float(ri["price"])
+                            deal = float(d["sale_price"])
+                            if deal >= paid:
+                                continue
+                            savings = round(paid - deal, 2)
+                        except (ValueError, TypeError):
+                            continue
+                        match_rank = {"exact_item_number": 3, "partial_item_number": 2, "name_keyword": 1}
+                        ri_matches.append({
+                            "receipt_item": ri["name"],
+                            "receipt_price": ri["price"],
+                            "original_price": ri.get("original_price", ""),
+                            "receipt_item_number": ri_num,
+                            "receipt_date": ri["receipt_date"],
+                            "tpd_at_purchase": ri["tpd"],
+                            "deal_name": d["item_name"],
+                            "deal_price": d["sale_price"],
+                            "deal_item_number": d_num,
+                            "deal_source": d.get("source", ""),
+                            "deal_link": d.get("link", ""),
+                            "deal_expiry": d.get("promo_end", ""),
+                            "matched_by": matched_by,
+                            "savings": savings,
+                            "_rank": match_rank.get(matched_by, 0),
+                        })
+                    if ri_matches:
+                        best = max(ri_matches, key=lambda m: (m["savings"], m["_rank"]))
+                        del best["_rank"]
+                        candidates.append(best)
+
+                candidates.sort(key=lambda m: m.get("receipt_date", ""))
+                return json.dumps(candidates) if candidates else "No potential matches found."
+
             prompt = "Analyze my Costco receipt against current price drops and show all price match opportunities."
-            if receipt_ids:
-                prompt = f"Analyze receipts {', '.join(receipt_ids)} against current price drops and show all price match opportunities."
+            if target_receipt_ids:
+                prompt = f"Analyze receipts {', '.join(target_receipt_ids)} against current price drops and show all price match opportunities."
             a = Agent(
                 model=model,
                 system_prompt=SYSTEM_PROMPT,
-                tools=[get_receipt_items, get_current_price_drops, find_potential_matches],
+                tools=[get_receipt_items_local, get_current_price_drops_local, find_potential_matches_local],
                 callback_handler=StreamHandler(),
             )
             a(prompt)
             q.put(("done", ""))
-        except Exception as e:
+        except BaseException as e:
             q.put(("error", str(e)))
-        finally:
-            global _target_receipt_ids, _date_from, _date_to, _sources
-            _target_receipt_ids = None
-            _date_from = None
-            _date_to = None
-            _sources = None
 
     thread = threading.Thread(target=run, daemon=True)
     thread.start()
 
     full_text = []
+    TIMEOUT = 270  # 4.5 min — Lambda max is 5 min, give 30s headroom
     while True:
-        msg_type, data = q.get()
+        try:
+            msg_type, data = q.get(timeout=TIMEOUT)
+        except queue.Empty:
+            yield f"data: {json.dumps({'type':'error','text':'Analysis timed out after 4.5 minutes'})}\n\n"
+            break
         if msg_type == "chunk":
             full_text.append(data)
             yield f"data: {json.dumps({'type':'chunk','text':data})}\n\n"
@@ -333,3 +289,124 @@ def run_analysis_stream(receipt_ids=None, date_from=None, date_to=None, sources=
             text = _inject_receipt_links(text, lookup)
             yield f"data: {json.dumps({'type':'done','text':text})}\n\n"
             break
+
+
+def run_analysis(receipt_ids: list = None) -> str:
+    """Run non-streaming analysis by collecting the streaming generator output."""
+    error = None
+    for event_str in run_analysis_stream(receipt_ids=receipt_ids):
+        if not event_str.startswith("data: "):
+            continue
+        ev = json.loads(event_str[6:])
+        if ev["type"] == "done":
+            return ev["text"]
+        elif ev["type"] == "error":
+            error = ev["text"]
+            break
+    return f"Analysis failed: {error}" if error else ""
+
+
+def get_price_match_data(receipt_ids=None, date_from=None, date_to=None, sources=None) -> dict:
+    """
+    Pure-Python pre-filter with NO Bedrock calls.
+    Returns candidates + full receipt items so ClawdBot's own LLM can do the
+    analysis reasoning instead of invoking Bedrock from the Lambda.
+    """
+    # Filter deals
+    drops = db.get_all_price_drops()
+    if sources:
+        src_set = set(sources)
+        drops = [d for d in drops if d.get("source", "") in src_set]
+    if date_from:
+        drops = [d for d in drops if (d.get("promo_end") or d.get("scanned_date", "")[:10]) >= date_from]
+    if date_to:
+        drops = [d for d in drops if (d.get("scanned_date", "")[:10] or d.get("promo_end", "9999")) <= date_to]
+
+    # Get receipts
+    if receipt_ids:
+        receipts = [r for r in [db.get_receipt(rid) for rid in receipt_ids] if r]
+    else:
+        receipts = db.get_recent_receipts(30)
+
+    # Build flat receipt items list
+    receipt_items = []
+    for r in receipts:
+        for item in r.get("items", []):
+            receipt_items.append({
+                "name": item.get("name", ""),
+                "price": item.get("price", "0"),
+                "qty": item.get("qty", "1"),
+                "item_number": item.get("item_number", ""),
+                "receipt_date": r.get("receipt_date", ""),
+                "store": r.get("store", ""),
+                "receipt_id": r.get("receipt_id", ""),
+                "tpd": item.get("tpd", False),
+                "original_price": item.get("original_price", ""),
+            })
+
+    # Pre-filter candidates (pure Python)
+    skip_words = {"the", "and", "for", "with", "pack", "size", "sizes", "plus", "mens", "womens"}
+    candidates = []
+    for ri in receipt_items:
+        ri_num = ri["item_number"]
+        ri_words = [w for w in ri["name"].lower().replace("/", " ").split()
+                    if len(w) >= 4 and w not in skip_words]
+        best = None
+        for d in drops:
+            d_num = d.get("item_number", "")
+            d_name = d["item_name"].lower()
+            matched_by = None
+            if ri_num and d_num and ri_num == d_num:
+                matched_by = "exact_item_number"
+            elif ri_num and d_num and len(ri_num) >= 5 and len(d_num) >= 5 and ri_num[:5] == d_num[:5]:
+                matched_by = "partial_item_number"
+            elif len(ri_words) >= 2 and sum(1 for w in ri_words if w in d_name) >= 2:
+                matched_by = "name_keyword"
+            elif len(ri_words) == 1 and len(ri_words[0]) >= 5 and ri_words[0] in d_name:
+                matched_by = "name_keyword"
+            if not matched_by:
+                continue
+            try:
+                paid = float(ri["price"])
+                deal = float(d["sale_price"])
+                if deal >= paid:
+                    continue
+                savings = round(paid - deal, 2)
+            except (ValueError, TypeError):
+                continue
+            rank = {"exact_item_number": 3, "partial_item_number": 2, "name_keyword": 1}
+            candidate = {
+                "receipt_item": ri["name"],
+                "receipt_price": ri["price"],
+                "receipt_item_number": ri_num,
+                "receipt_date": ri["receipt_date"],
+                "store": ri["store"],
+                "tpd_at_purchase": ri["tpd"],
+                "original_price": ri.get("original_price", ""),
+                "deal_name": d["item_name"],
+                "deal_price": d["sale_price"],
+                "deal_item_number": d_num,
+                "deal_source": d.get("source", ""),
+                "deal_link": d.get("link", ""),
+                "deal_expiry": d.get("promo_end", ""),
+                "matched_by": matched_by,
+                "savings": savings,
+                "_rank": rank.get(matched_by, 0),
+            }
+            if best is None or (savings, candidate["_rank"]) > (best["savings"], best["_rank"]):
+                best = candidate
+        if best:
+            del best["_rank"]
+            candidates.append(best)
+
+    candidates.sort(key=lambda m: m.get("receipt_date", ""))
+
+    # TPD items (already discounted at checkout)
+    tpd_items = [ri for ri in receipt_items if ri.get("tpd")]
+
+    return {
+        "candidates": candidates,
+        "tpd_items": tpd_items,
+        "receipt_count": len(receipts),
+        "deal_count": len(drops),
+    }

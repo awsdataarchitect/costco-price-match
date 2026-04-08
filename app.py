@@ -40,6 +40,13 @@ def get_config():
     return result
 
 
+@app.post("/api/inspect-pdf")
+async def inspect_pdf_endpoint(file: UploadFile = File(...)):
+    """Inspect a PDF without parsing — returns page count, text/image content, and recommended parser."""
+    pdf_bytes = await file.read()
+    return receipt_parser.inspect_pdf(pdf_bytes)
+
+
 @app.post("/api/upload")
 async def upload_receipt(file: UploadFile = File(...)):
     if not file.filename.lower().endswith(".pdf"):
@@ -48,7 +55,7 @@ async def upload_receipt(file: UploadFile = File(...)):
     if len(pdf_bytes) > 10 * 1024 * 1024:
         raise HTTPException(400, "File too large (max 10MB)")
     try:
-        parsed = receipt_parser.parse_receipt_pdf(pdf_bytes)
+        parsed = receipt_parser.parse_receipt_pdf(pdf_bytes)  # auto-routes based on PDF content
     except Exception as e:
         raise HTTPException(500, f"Failed to parse receipt: {e}")
     receipt = db.put_receipt(
@@ -59,7 +66,11 @@ async def upload_receipt(file: UploadFile = File(...)):
     )
     # Store PDF in S3 for potential reparse
     db.upload_pdf(receipt["receipt_id"], pdf_bytes)
-    return {"receipt": receipt, "parsed_items": len(receipt["items"])}
+    return {
+        "receipt": receipt,
+        "items_count": len(receipt["items"]),
+        "parsed_by": parsed.get("parsed_by", "unknown"),
+    }
 
 
 @app.get("/api/receipts")
@@ -111,20 +122,39 @@ def analyze_receipts(
     sources: str = Query(default=None),
 ):
     src_list = [s.strip() for s in sources.split(",")] if sources else None
-    # Support both single receipt_id and comma-separated receipt_ids
     rid_list = None
     if receipt_ids:
         rid_list = [r.strip() for r in receipt_ids.split(",") if r.strip()]
     elif receipt_id:
         rid_list = [receipt_id]
-    
-    # Check if this is a streaming request (from Amplify with auth)
-    # For now, keep existing StreamingResponse for compatibility
     return StreamingResponse(
         analyzer.run_analysis_stream(rid_list, date_from, date_to, src_list),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.get("/api/price-match-candidates")
+def price_match_candidates(
+    receipt_id: str = Query(default=None),
+    receipt_ids: str = Query(default=None),
+    date_from: str = Query(default=None),
+    date_to: str = Query(default=None),
+    sources: str = Query(default=None),
+):
+    """
+    Pure-Python pre-filter: returns matched candidates + receipt items as JSON.
+    No Bedrock calls. Intended for ClawdBot to do the analysis reasoning with
+    its own configured LLM instead of calling Bedrock from the Lambda.
+    """
+    src_list = [s.strip() for s in sources.split(",")] if sources else None
+    rid_list = None
+    if receipt_ids:
+        rid_list = [r.strip() for r in receipt_ids.split(",") if r.strip()]
+    elif receipt_id:
+        rid_list = [receipt_id]
+
+    return analyzer.get_price_match_data(rid_list, date_from, date_to, src_list)
 
 
 @app.get("/api/receipt/{receipt_id}/pdf")
@@ -145,21 +175,25 @@ def update_item(receipt_id: str, index: int, item: dict = Body(...)):
 
 
 @app.post("/api/reparse/{receipt_id}")
-def reparse_receipt(receipt_id: str):
+def reparse_receipt(receipt_id: str, model: str = Query(default="auto")):
+    """Reparse a stored receipt PDF. model=auto|text|lite|premier. Default: auto (free text if possible)."""
     pdf_bytes = db.download_pdf(receipt_id)
     if not pdf_bytes:
         raise HTTPException(404, "PDF not found in S3 for this receipt")
     try:
-        parsed = receipt_parser.parse_receipt_pdf(pdf_bytes, model="premier")
+        parsed = receipt_parser.parse_receipt_pdf(pdf_bytes, model=model)
     except Exception as e:
-        raise HTTPException(500, f"Premier reparse failed: {e}")
+        raise HTTPException(500, f"Reparse failed: {e}")
     db.update_receipt_items(
         receipt_id,
         items=parsed.get("items", []),
         store=parsed.get("store", ""),
         receipt_date=parsed.get("receipt_date", ""),
     )
-    return {"items": len(parsed.get("items", [])), "model": "premier"}
+    return {
+        "items": len(parsed.get("items", [])),
+        "model": parsed.get("parsed_by", model),
+    }
 
 
 try:

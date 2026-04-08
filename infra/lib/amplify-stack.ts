@@ -202,7 +202,7 @@ export class AmplifyStack extends cdk.Stack {
     this.lambdaFunction = new lambda.DockerImageFunction(this, 'ApiFunction', {
       functionName: 'costco-scanner-api',
       code: lambda.DockerImageCode.fromImageAsset('../', {
-        file: 'lambda.Dockerfile',
+        file: 'docker/lambda.Dockerfile',
       }),
       architecture: lambda.Architecture.ARM_64,
       role: lambdaRole,
@@ -215,6 +215,7 @@ export class AmplifyStack extends cdk.Stack {
         USER_POOL_ID: this.userPool.userPoolId,
         USER_POOL_CLIENT_ID: this.webAppClient.userPoolClientId,
         APP_SECRET_ARN: appSecret.secretArn,
+        COSTCO_COUNTRY: this.node.tryGetContext('costcoCountry') ?? 'US',
       },
     });
 

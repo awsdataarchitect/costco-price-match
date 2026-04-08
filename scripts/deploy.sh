@@ -5,14 +5,15 @@ set -e
 
 REGION=${AWS_DEFAULT_REGION:-us-east-2}
 NOTIFY_EMAIL=${NOTIFY_EMAIL:-}
+COSTCO_COUNTRY=${COSTCO_COUNTRY:-US}
 
-echo "🚀 Deploying Costco Scanner to $REGION...\"
+echo "🚀 Deploying Costco Scanner to $REGION (country: $COSTCO_COUNTRY)..."
 
 # Step 1: CDK deploy
 echo "📦 Running CDK deploy..."
-cd "$(dirname "$0")/infra"
+cd "$(dirname "$0")/../infra"
 
-CDK_CONTEXT="-c region=$REGION"
+CDK_CONTEXT="-c region=$REGION -c costcoCountry=$COSTCO_COUNTRY"
 [ -n "$NOTIFY_EMAIL" ] && CDK_CONTEXT="$CDK_CONTEXT -c notifyEmail=$NOTIFY_EMAIL"
 
 npx cdk deploy --all --require-approval never $CDK_CONTEXT
@@ -33,7 +34,7 @@ echo "   Amplify App: $AMPLIFY_APP_ID"
 
 # Step 3: Generate config.js
 echo "📝 Generating config.js..."
-cat > static/config.js << EOF
+cat > "$(dirname "$0")/../static/config.js" << EOF
 window.CONFIG = {
   API_URL: '$API_URL',
   COGNITO_USER_POOL_ID: '$USER_POOL_ID',
@@ -57,7 +58,7 @@ UPLOAD_URL=$(echo $DEPLOY_RESULT | python3 -c "import sys,json; print(json.load(
 JOB_ID=$(echo $DEPLOY_RESULT | python3 -c "import sys,json; print(json.load(sys.stdin)['jobId'])")
 
 # Create zip of static files (Amplify expects files at root of zip)
-cd static && zip -r ../amplify-deploy.zip . && cd ..
+cd "$(dirname "$0")/../static" && zip -r ../amplify-deploy.zip . && cd ..
 
 # Upload zip
 curl -s -T amplify-deploy.zip "$UPLOAD_URL"

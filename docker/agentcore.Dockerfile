@@ -1,4 +1,4 @@
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+FROM --platform=linux/arm64 ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 WORKDIR /app
 
 ENV UV_SYSTEM_PYTHON=1 UV_COMPILE_BYTECODE=1
