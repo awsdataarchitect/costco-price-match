@@ -14,10 +14,10 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(name)s | %(mes
 
 app = BedrockAgentCoreApp()
 
-REGION = os.environ.get("AWS_REGION", "us-west-2")
+REGION = os.environ.get("AWS_REGION", "us-east-1")
 S3_BUCKET = os.environ.get("S3_BUCKET", "")
 SENDER = os.environ.get("NOTIFY_EMAIL", "")
-RECIPIENT = os.environ.get("NOTIFY_EMAIL", "")
+RECIPIENTS = [e.strip() for e in os.environ.get("NOTIFY_EMAILS", os.environ.get("NOTIFY_EMAIL", "")).split(",") if e.strip()]
 
 s3 = boto3.client("s3", region_name=REGION)
 ses = boto3.client("ses", region_name=REGION)
@@ -79,8 +79,12 @@ def _md_to_html(md: str) -> str:
 async def invoke(payload: dict[str, Any] | None = None) -> dict[str, Any]:
     try:
         logging.info(f"Payload received: {payload}")
-        deals = scan_price_drops(force_refresh=True)
-        logging.info(f"Scanned {len(deals)} deals")
+        deals, source_results = scan_price_drops(force_refresh=True)
+        logging.info(f"Scanned {len(deals)} deals from {len(source_results)} sources")
+        for sr in source_results:
+            logging.info(f"  {sr['name']}: {sr['count']} deals ({sr['status']}, {sr['duration_s']}s)")
+            if sr.get('error'):
+                logging.warning(f"    Error: {sr['error']}")
 
         report = run_analysis()
         logging.info(f"Analysis complete ({len(report)} chars)")
@@ -90,7 +94,7 @@ async def invoke(payload: dict[str, Any] | None = None) -> dict[str, Any]:
 
         ses.send_email(
             Source=SENDER,
-            Destination={"ToAddresses": [RECIPIENT]},
+            Destination={"ToAddresses": RECIPIENTS},
             Message={
                 "Subject": {"Data": "Costco Weekly Price Match Report"},
                 "Body": {"Html": {"Data": html_body}},

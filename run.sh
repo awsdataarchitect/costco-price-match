@@ -2,9 +2,14 @@
 # Run the Costco Scanner locally
 # Requires: AWS credentials configured, Python 3.12+, .venv created
 
-cd "$(dirname "$0")" && source .venv/bin/activate
+cd "$(dirname "$0")"
+if [ -f .venv/Scripts/activate ]; then
+  source .venv/Scripts/activate
+else
+  source .venv/bin/activate
+fi
 
-export AWS_REGION=${AWS_REGION:-us-west-2}
+export AWS_REGION=${AWS_REGION:-us-east-1}
 
 # Auto-fetch resource names from CDK stack if not set
 if [ -z "$DYNAMODB_RECEIPTS_TABLE" ]; then

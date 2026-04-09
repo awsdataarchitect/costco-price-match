@@ -9,13 +9,14 @@ import { CommonStack } from './common-stack';
 interface AgentCoreStackProps extends cdk.StackProps {
   commonStack: CommonStack;
   notifyEmail: string;
+  notifyEmails?: string;  // comma-separated list of all recipients
 }
 
 export class AgentCoreStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: AgentCoreStackProps) {
     super(scope, id, props);
 
-    const { commonStack, notifyEmail } = props;
+    const { commonStack, notifyEmail, notifyEmails } = props;
 
     const role = new iam.Role(this, 'AgentCoreRole', {
       assumedBy: new iam.ServicePrincipal('bedrock-agentcore.amazonaws.com'),
@@ -55,12 +56,19 @@ export class AgentCoreStack extends cdk.Stack {
         DYNAMODB_PRICE_DROPS_TABLE: commonStack.priceDropsTable.tableName,
         S3_BUCKET: commonStack.receiptsBucket.bucketName,
         NOTIFY_EMAIL: notifyEmail,
+        NOTIFY_EMAILS: notifyEmails || notifyEmail,
         AWS_DEFAULT_REGION: this.region,
       },
     });
 
-    // SES identity for weekly email (sends verification on first deploy)
-    new ses.CfnEmailIdentity(this, 'SesIdentity', { emailIdentity: notifyEmail });
+    // SES identities for weekly email (sends verification on first deploy)
+    const allEmails = new Set((notifyEmails || notifyEmail).split(',').map(e => e.trim()).filter(Boolean));
+    allEmails.add(notifyEmail); // sender always needs verification
+    let sesIdx = 0;
+    for (const email of allEmails) {
+      new ses.CfnEmailIdentity(this, `SesIdentity${sesIdx || ''}`, { emailIdentity: email });
+      sesIdx++;
+    }
 
     new cdk.CfnOutput(this, 'RuntimeId', {
       value: runtime.agentRuntimeId,

@@ -1,80 +1,42 @@
 # Costco Receipt Scanner & Price Match Agent
 
-AI-powered tool that scans your Costco receipts, cross-references purchases against active deals, and tells you exactly which items dropped in price and how much you can get back at the membership counter.
+AI-powered tool that scans your Costco receipts, cross-references purchases against active US deals, and tells you exactly which items dropped in price and how much you can get back at the membership counter.
 
 A weekly agent runs every Friday at 9pm ET, generates a formatted HTML report, and emails it to you via SES.
+
+Forked from [the original Canadian version](https://github.com/waltsims/costco-price-match) and adapted for US Costco deal sources.
 
 ![Architecture](diagrams/architecture.png)
 
 ## How It Works
 
-1. Upload receipt PDFs through the web UI or iOS app
+1. Upload receipt PDFs or snap a photo with your phone's camera
 2. Amazon Nova AI parses every line item, price, item number, and TPD (Temporary Price Drop)
-3. Scrapers pull current deals from cocowest, cocoeast, redflagdeals, and the Costco coupon book
+3. Scrapers pull current deals from Reddit r/Costco, Reddit r/CostcoDeals, KrazyCouponLady, and CostcoFan
 4. AI cross-references your purchases against active deals
 5. Weekly agent emails you a report with price adjustment opportunities and TPD savings already applied
 
 ![Weekly Flow](diagrams/weekly-flow.png)
 
+## What's Different from the Original
+
+- **US deal sources** — Replaced 6 Canadian sources (CocoWest, CocoEast, RedFlagDeals, SmartCanucks, etc.) with 5 US sources (Reddit r/Costco, Reddit r/CostcoDeals, KCL Costco Deals, KCL Coupon Book, CostcoFan)
+- **Camera upload** — Snap a photo of your receipt directly from the web app on mobile, no PDF scanning needed
+- **Image support** — Upload JPG, PNG, WebP alongside PDFs; images are sent directly to Bedrock Nova
+- **Per-source observability** — Scan results show status, deal count, and duration for each scraper
+- **Passwordless auth** — Email OTP sign-in via Cognito (no passwords to manage)
+- **Mobile-responsive UI** — Styled for phone use with camera capture, touch-friendly modals
+- **Deploy improvements** — `--static-only` flag for quick frontend deploys, Windows/Git Bash compatibility
+
 ## Architecture
 
-- **Web Frontend**: Static HTML on AWS Amplify with Cognito authentication
+- **Web Frontend**: Static HTML on AWS Amplify with Cognito email OTP authentication
 - **iOS App**: Native SwiftUI, zero third-party dependencies, 0.9s builds
 - **API**: API Gateway HTTP API → Lambda (FastAPI + Mangum), streaming analysis responses
 - **AI**: Amazon Nova 2 Lite for parsing + analysis, Nova Premier for complex receipts
 - **Automation**: AgentCore Runtime triggered by EventBridge Scheduler universal target (no Lambda middleman), SES for email
-- **Storage**: DynamoDB (receipts + deals), S3 (receipt PDFs with presigned URLs)
+- **Storage**: DynamoDB (receipts + deals), S3 (receipt files with presigned URLs)
 - **Infrastructure**: CDK (TypeScript), 3 stacks, deploy to any region
-
-## iOS App — CostScanner
-
-Native SwiftUI app with a BYOI (Bring Your Own Infrastructure) model. Deploy the CDK stack, paste your API URL in Settings, and the app auto-connects. No sign-in screen. No account creation. The infrastructure IS the account.
-
-**Available on the [App Store](https://apps.apple.com/ca/app/costscanner/id6759347927)** (published by Waltsoft Inc.)
-
-### Features
-
-- 4-tab interface: Receipts, Deals, Analyze, Settings
-- Upload receipt PDFs via file picker
-- Browse 700+ active deals with source chips, date filters, and urgency badges
-- AI-powered analysis with streaming responses from Amazon Nova
-- Tracks Temporary Price Drops (TPD) already applied at checkout
-- Pull-to-refresh, swipe-to-delete, PDF viewer
-- Cold start retry with user-friendly loading states
-
-### The Numbers
-
-- 15 Swift files, 0 third-party dependencies
-- 0.9 second incremental builds
-- Pure URLSession + direct Cognito REST API (no Amplify SDK)
-- Built with [Kiro CLI](https://kiro.dev) and Apple's [Xcode MCP bridge](https://developer.apple.com/documentation/xcode/giving-agentic-coding-tools-access-to-xcode)
-
-### BYOI Model
-
-CostScanner is not a SaaS. No servers hosted for users. No data stored on our end. Users deploy their own AWS CDK stack and the app connects to their infrastructure.
-
-1. Deploy the CDK stack (see below)
-2. Open CostScanner → Settings → paste your API Gateway URL
-3. App calls `/api/config`, fetches Cognito credentials from Secrets Manager, signs in automatically
-4. Done. Your data stays in your AWS account.
-
-Privacy policy: we collect nothing. Every receipt, deal, and AI analysis lives in the user's own AWS account. `cdk destroy` and everything disappears.
-
-```
-ios/CostcoScanner/
-├── CostcoScannerApp.swift       # Entry point, auto-refresh on launch
-├── APIClient.swift              # URLSession, auto-retry 401, cancellation handling
-├── BackendConfig.swift          # Cognito REST auth, /api/config, Secrets Manager
-├── Models.swift                 # Receipt, PriceDrop, API responses
-└── Views/
-    ├── MainTabView.swift        # 4 tabs + ConnectPrompt overlay
-    ├── ReceiptsView.swift       # List, upload, pull-to-refresh, cold start retry
-    ├── ReceiptDetailView.swift  # Line items, TPD badges, PDF viewer
-    ├── DealsView.swift          # Search, source chips, date filter, urgency badges
-    ├── AnalysisView.swift       # SSE streaming, receipt selector, share
-    ├── SettingsView.swift       # API URL, BYOI Terms/Privacy, About
-    └── PDFViewer.swift          # Full-screen receipt PDF
-```
 
 ## Prerequisites
 
@@ -82,13 +44,12 @@ ios/CostcoScanner/
 - Node.js 18+ and npm
 - Docker running
 - Python 3.12+
-- Xcode 26.3+ (for iOS development with MCP bridge)
 
 ## Run Locally
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate  # Windows Git Bash: source .venv/Scripts/activate
 pip install -r requirements.txt
 ./run.sh
 ```
@@ -105,9 +66,12 @@ NOTIFY_EMAIL=your-email@example.com ./deploy.sh
 
 # Deploy weekly agent (SES verification email sent on first deploy)
 cd infra && npx cdk deploy CostcoScannerAgentCore \
-  -c region=us-west-2 \
+  -c region=us-east-1 \
   -c notifyEmail=your-email@example.com \
   --require-approval never
+
+# Deploy frontend changes only (no CDK/Docker rebuild)
+./deploy.sh --static-only
 ```
 
 After deploy, the CDK output shows your API Gateway URL. Paste it into the iOS app's Settings to connect.
@@ -116,19 +80,28 @@ After deploy, the CDK output shows your API Gateway URL. Paste it into the iOS a
 
 ```bash
 cd infra
-npx cdk destroy CostcoScannerAgentCore -c region=us-west-2 -c notifyEmail=your-email@example.com
-npx cdk destroy CostcoScannerAmplify -c region=us-west-2
-npx cdk destroy CostcoScannerCommon -c region=us-west-2
+npx cdk destroy CostcoScannerAgentCore -c region=us-east-1 -c notifyEmail=your-email@example.com
+npx cdk destroy CostcoScannerAmplify -c region=us-east-1
+npx cdk destroy CostcoScannerCommon -c region=us-east-1
 ```
+
+## Backlog
+
+- **Disable self-signup** — Lock down Cognito registration once family accounts are created. Currently anyone who discovers the Amplify URL can sign up and see all receipts (no per-user data isolation).
+- **Custom domain SSL** — `costco.dunkinspeeps.com` is configured and working. Consider moving the main domain DNS to Route53 for tighter integration.
+- **Scraper resilience** — Deal sources change HTML structure without warning. The per-source observability helps detect failures, but scrapers may need periodic updates when sites change.
+- **Receipt parsing accuracy** — Camera photos of handheld receipts can produce OCR errors (wrong dates, missed items). The edit/delete item UI helps correct these, but improving the prompt or adding a second-pass validation could reduce manual fixes.
+- **Per-user data isolation** — All authenticated users share all receipts. Fine for family use with signup disabled, but would need row-level filtering (e.g., by Cognito sub) if opened to more users.
+- **Activate cost allocation tag** — The `project: costco-price-match` tag is on all resources but needs to be activated in AWS Billing as a cost allocation tag (takes 24h after first tagging) to filter in Cost Explorer.
 
 ## Cost
 
-Under $1/month for personal use. Bedrock Nova tokens are the main cost (~$0.10-0.20/week). Lambda, SES, DynamoDB, API Gateway, and Amplify fall within free tier.
+Under $1/month for personal use. Bedrock Nova tokens are the main cost (~$0.10-0.20/week). Lambda, SES, DynamoDB, API Gateway, and Amplify fall within free tier. All resources are tagged with `project: costco-price-match` for cost tracking in Cost Explorer.
 
-## Built With ❤️
+## Built With
 
-- [Kiro CLI](https://kiro.dev) — AI coding assistant by AWS
+- [Claude Code](https://claude.ai/code) — AI coding assistant by Anthropic (US adaptation)
+- [Kiro CLI](https://kiro.dev) — AI coding assistant by AWS (original version)
 - [Amazon Bedrock](https://aws.amazon.com/bedrock/) — Nova 2 Lite + Nova Premier
 - [Amazon Bedrock AgentCore](https://aws.amazon.com/bedrock/agentcore/) — Runtime for the weekly agent
 - [AWS CDK](https://aws.amazon.com/cdk/) — Infrastructure as code
-- [Xcode MCP Bridge](https://developer.apple.com/documentation/xcode/giving-agentic-coding-tools-access-to-xcode) — AI agent access to Xcode builds, previews, and tests

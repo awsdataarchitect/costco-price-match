@@ -45,6 +45,10 @@ export class AmplifyStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
+    // Enable email OTP passwordless sign-in
+    const cfnUserPool = this.userPool.node.defaultChild as cognito.CfnUserPool;
+    cfnUserPool.addPropertyOverride('Policies.SignInPolicy.AllowedFirstAuthFactors', ['EMAIL_OTP', 'PASSWORD']);
+
     // Web app client
     this.webAppClient = this.userPool.addClient('WebAppClient', {
       userPoolClientName: 'costco-scanner-web',
@@ -52,8 +56,18 @@ export class AmplifyStack extends cdk.Stack {
       authFlows: {
         userSrp: true,
         userPassword: true,
+        custom: true,
       },
     });
+
+    // Add ALLOW_USER_AUTH (not exposed in L2 construct)
+    const cfnWebClient = this.webAppClient.node.defaultChild as cognito.CfnUserPoolClient;
+    cfnWebClient.addPropertyOverride('ExplicitAuthFlows', [
+      'ALLOW_USER_AUTH',
+      'ALLOW_USER_SRP_AUTH',
+      'ALLOW_USER_PASSWORD_AUTH',
+      'ALLOW_REFRESH_TOKEN_AUTH',
+    ]);
 
     // iOS app client
     this.iosAppClient = this.userPool.addClient('IosAppClient', {
@@ -62,19 +76,29 @@ export class AmplifyStack extends cdk.Stack {
       authFlows: {
         userSrp: true,
         userPassword: true,
+        custom: true,
       },
     });
 
-    // Default user credentials in Secrets Manager
-    const defaultPassword = 'CostScanner2026!';
+    const cfnIosClient = this.iosAppClient.node.defaultChild as cognito.CfnUserPoolClient;
+    cfnIosClient.addPropertyOverride('ExplicitAuthFlows', [
+      'ALLOW_USER_AUTH',
+      'ALLOW_USER_SRP_AUTH',
+      'ALLOW_USER_PASSWORD_AUTH',
+      'ALLOW_REFRESH_TOKEN_AUTH',
+    ]);
+
+    // App credentials in Secrets Manager (auto-generated password)
     const defaultEmail = props.notifyEmail || 'admin@costscanner.local';
 
     const appSecret = new secretsmanager.Secret(this, 'AppCredentials', {
       secretName: 'costco-scanner/app-credentials',
-      secretStringValue: cdk.SecretValue.unsafePlainText(JSON.stringify({
-        username: defaultEmail,
-        password: defaultPassword,
-      })),
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({ username: defaultEmail }),
+        generateStringKey: 'password',
+        passwordLength: 24,
+        excludePunctuation: false,
+      },
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
@@ -86,7 +110,7 @@ export class AmplifyStack extends cdk.Stack {
         parameters: {
           UserPoolId: this.userPool.userPoolId,
           Username: defaultEmail,
-          TemporaryPassword: defaultPassword,
+          TemporaryPassword: appSecret.secretValueFromJson('password').unsafeUnwrap(),
           UserAttributes: [{ Name: 'email', Value: defaultEmail }, { Name: 'email_verified', Value: 'true' }],
           MessageAction: 'SUPPRESS',
         },
@@ -109,7 +133,7 @@ export class AmplifyStack extends cdk.Stack {
         parameters: {
           UserPoolId: this.userPool.userPoolId,
           Username: defaultEmail,
-          Password: defaultPassword,
+          Password: appSecret.secretValueFromJson('password').unsafeUnwrap(),
           Permanent: true,
         },
         physicalResourceId: cr.PhysicalResourceId.of('default-user-password'),
@@ -233,7 +257,7 @@ export class AmplifyStack extends cdk.Stack {
     this.httpApi = new apigateway.HttpApi(this, 'HttpApi', {
       apiName: 'costco-scanner-api',
       corsPreflight: {
-        allowOrigins: ['*'],
+        allowOrigins: ['https://costco.dunkinspeeps.com', 'http://localhost:8000'],
         allowMethods: [apigateway.CorsHttpMethod.ANY],
         allowHeaders: ['*'],
       },

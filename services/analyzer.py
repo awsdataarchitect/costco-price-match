@@ -7,7 +7,7 @@ from services import db
 
 model = BedrockModel(
     model_id="us.amazon.nova-2-lite-v1:0",
-    region_name=os.environ.get("AWS_REGION", "us-west-2"),
+    region_name=os.environ.get("AWS_REGION", "us-east-1"),
     max_tokens=32000,
     boto_client_config=Config(read_timeout=300),
 )

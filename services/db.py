@@ -3,7 +3,7 @@ import uuid
 import os
 from datetime import datetime
 
-REGION = os.environ.get("AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "us-west-2"))
+REGION = os.environ.get("AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "us-east-1"))
 RECEIPTS_TABLE = os.environ.get("DYNAMODB_RECEIPTS_TABLE", "CostcoReceipts")
 PRICE_DROPS_TABLE = os.environ.get("DYNAMODB_PRICE_DROPS_TABLE", "CostcoPriceDrops")
 PDF_BUCKET = os.environ.get("S3_BUCKET", "costco-receipt-pdfs-scanner")

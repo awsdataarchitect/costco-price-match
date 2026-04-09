@@ -2,11 +2,10 @@ fastapi
 uvicorn
 python-multipart
 boto3
+botocore[crt]
 strands-agents
 beautifulsoup4
 requests
-playwright
-playwright-stealth
 pillow
 PyMuPDF
 bedrock-agentcore

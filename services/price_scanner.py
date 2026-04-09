@@ -5,8 +5,6 @@ import random
 import time
 from datetime import datetime
 import json
-import os
-import boto3
 from services import db
 
 USER_AGENTS = [
@@ -20,106 +18,6 @@ def _parse_price(text):
     """Extract price from text, return as string or empty."""
     m = re.search(r'\$?([\d,]+\.?\d*)', text)
     return m.group(1).replace(",", "") if m else ""
-
-
-def _scrape_rfd_hot_deals() -> list:
-    """Scrape RedFlagDeals Hot Deals forum for Costco deals."""
-    deals = []
-    try:
-        resp = requests.get(
-            "https://forums.redflagdeals.com/hot-deals-f9/?c=5",
-            headers={"User-Agent": random.choice(USER_AGENTS)},
-            timeout=15,
-        )
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
-
-        # Noise filter - skip non-Costco items
-        skip_keywords = ['nissan', 'toyota', 'honda', 'hyundai', 'kia', 'bmw', 'mercedes',
-                         'scotiabank', 'amex', 'visa', 'mastercard', 'credit card',
-                         'wine glass', 'ajax', 'rcss', 'walmart', 'amazon', 'ebay',
-                         'little caesars', 'domino', 'skip the dishes', 'uber',
-                         'shell go', 'gas station', 'car wash', 'mortgage',
-                         'sponsored', 'topcashback', 'spc x skip']
-
-        for el in soup.find_all(attrs={"data-thread-id": True}):
-            for a in el.find_all("a"):
-                title = a.get_text(strip=True)
-                href = a.get("href", "")
-                if len(title) > 30 and "[Sponsored]" not in title and "Last Page" not in title:
-                    # Skip non-Costco noise
-                    if any(skip in title.lower() for skip in skip_keywords):
-                        break
-
-                    prices = re.findall(r'\$([\d,]+\.?\d*)', title)
-                    if prices:
-                        name_part = title.split("$")[0].strip().rstrip(" -–|")
-                        if len(name_part) > 5:
-                            sale = prices[0].replace(",", "")
-                            orig = ""
-                            reg_match = re.search(r'(?:reg\.?|was|orig)\s*\$?([\d,]+\.?\d*)', title, re.IGNORECASE)
-                            if reg_match:
-                                orig = reg_match.group(1).replace(",", "")
-                            elif len(prices) > 1:
-                                orig = prices[1].replace(",", "")
-
-                            # Build full URL
-                            link = href
-                            if link.startswith("/"):
-                                link = "https://forums.redflagdeals.com" + link
-
-                            deals.append({
-                                "item_name": name_part[:100],
-                                "sale_price": sale,
-                                "original_price": orig,
-                                "promo_start": "",
-                                "promo_end": "",
-                                "source": "redflagdeals.com",
-                                "link": link,
-                            })
-                    break
-    except Exception as e:
-        print(f"RFD Hot Deals failed: {e}")
-    return deals
-
-
-def _scrape_rfd_clearance() -> list:
-    """Scrape RedFlagDeals .97 clearance thread."""
-    deals = []
-    try:
-        resp = requests.get(
-            "https://forums.redflagdeals.com/east-gta-clearance-items-ending-97-general-thread-2146900/",
-            headers={"User-Agent": random.choice(USER_AGENTS)},
-            timeout=15,
-        )
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
-
-        for post in soup.select(".post_content"):
-            text = post.get_text()
-            lines = [l.strip() for l in text.split("\n") if l.strip()]
-            for line in lines:
-                if ".97" in line and "$" in line and len(line) < 200:
-                    # Match "product name was $X.97" or "product name $X.97"
-                    price_match = re.search(r'(.+?)\s*\$?([\d,]+\.97)', line)
-                    if price_match:
-                        name = price_match.group(1).strip()
-                        name = re.sub(r'^[-•*\d\s]+', '', name).strip(' -:')
-                        price = price_match.group(2).replace(",", "")
-                        skip_words = ['thread', 'post', 'forum', 'missing', 'updated', 'weekly',
-                                      'always', 'compiling', 'figured', 'instead', 'making']
-                        if 5 < len(name) < 100 and not any(w in name.lower() for w in skip_words):
-                            deals.append({
-                                "item_name": name,
-                                "sale_price": price,
-                                "original_price": "",
-                                "promo_start": "",
-                                "promo_end": "",
-                                "source": "redflagdeals.com/clearance",
-                            })
-    except Exception as e:
-        print(f"RFD clearance failed: {e}")
-    return deals
 
 
 def _scrape_reddit(subreddit: str) -> list:
@@ -164,202 +62,360 @@ def _scrape_reddit(subreddit: str) -> list:
     return deals
 
 
-COUPON_PROMPT = """This is a Costco coupon book page. Extract every product deal.
-Costco coupon books show: product name, item number (5-7 digit number), a SAVINGS amount (e.g. "$4 OFF" or "SAVE $5"), and sometimes the final price AFTER discount.
-
-Return ONLY a valid JSON array:
-[{"name": "PRODUCT NAME", "item_number": "1234567", "sale_price": "12.99", "savings": "4.00"}]
-
-CRITICAL RULES:
-- item_number = the Costco item/product number (5-7 digits, usually near the product name). Empty string if not visible.
-- sale_price = the FINAL price the customer pays (the lower number). If only a savings amount is shown with no final price, leave sale_price empty.
-- savings = the dollar amount saved (the OFF/SAVE amount)
-- Do NOT put the savings amount in sale_price
-- Skip headers, dates, fine print, non-product items"""
-
-_bedrock = boto3.client("bedrock-runtime", region_name=os.environ.get("AWS_REGION", "us-west-2"))
-
-
-def _scrape_coupon_book() -> list:
-    """Scrape Costco Canada coupon book from SmartCanucks and parse with Nova 2 Lite."""
+def _scrape_reddit_deals() -> list:
+    """Scrape r/Costco for deal/clearance/markdown posts (broader than $ search)."""
     deals = []
-    headers = {"User-Agent": random.choice(USER_AGENTS)}
     try:
-        # Find latest warehouse offers flyer
-        r = requests.get("https://flyers.smartcanucks.ca/costco-canada", headers=headers, timeout=15)
-        r.raise_for_status()
-        soup = BeautifulSoup(r.text, "html.parser")
-
-        flyer_url = None
-        for a in soup.select("a[href*='costco']"):
-            href = a.get("href", "")
-            if "warehouse" in href.lower() and "business" not in href.lower() and "qc" not in href.lower():
-                flyer_url = href if href.startswith("http") else "https://flyers.smartcanucks.ca" + href
-                break
-        # Fallback to any warehouse flyer if no non-QC found
-        if not flyer_url:
-            for a in soup.select("a[href*='costco']"):
-                href = a.get("href", "")
-                if "warehouse" in href.lower() and "business" not in href.lower():
-                    flyer_url = href if href.startswith("http") else "https://flyers.smartcanucks.ca" + href
-                    break
-
-        if not flyer_url:
-            print("  No Costco flyer found on SmartCanucks")
-            return deals
-
-        # Get flyer page to find image base URL
-        r = requests.get(flyer_url, headers=headers, timeout=15)
-        r.raise_for_status()
-        soup = BeautifulSoup(r.text, "html.parser")
-        img = soup.select_one("img[src*='uploads/pages']")
-        if not img:
-            return deals
-
-        base = re.sub(r"-\d+\.jpg$", "", img["src"])
-
-        # Download and parse each page with Nova 2 Lite
-        for i in range(1, 20):
-            url = f"{base}-{i}.jpg"
-            r = requests.get(url, headers=headers, timeout=15)
-            if r.status_code != 200:
-                break
-
-            try:
-                resp = _bedrock.converse(
-                    modelId="us.amazon.nova-2-lite-v1:0",
-                    messages=[{"role": "user", "content": [
-                        {"image": {"format": "jpeg", "source": {"bytes": r.content}}},
-                        {"text": COUPON_PROMPT},
-                    ]}],
-                    inferenceConfig={"maxTokens": 4096, "temperature": 0},
-                )
-                text = resp["output"]["message"]["content"][0]["text"]
-                if "```" in text:
-                    text = text.split("```")[1]
-                    if text.startswith("json"):
-                        text = text[4:]
-
-                items = json.loads(text.strip())
-                for item in items:
-                    sale = item.get("sale_price", "")
-                    savings = item.get("savings", "")
-                    name = item.get("name", "").strip()
-                    item_num = item.get("item_number", "").strip()
-                    if name and (sale or savings):
+        for query in ["clearance", "markdown", "price drop", "instant savings"]:
+            resp = requests.get(
+                f"https://www.reddit.com/r/Costco/search.json?q={query}&restrict_sr=on&sort=new&t=month&limit=10",
+                headers={"User-Agent": "CostcoScanner/1.0"},
+                timeout=15,
+            )
+            if resp.status_code != 200:
+                continue
+            data = resp.json()
+            for post in data.get("data", {}).get("children", []):
+                post_data = post["data"]
+                title = post_data["title"]
+                permalink = post_data.get("permalink", "")
+                if any(skip in title.lower() for skip in ["megathread", "how costco gets you"]):
+                    continue
+                prices = re.findall(r'\$([\d,]+\.?\d*)', title)
+                if prices:
+                    name_part = title.split("$")[0].strip().rstrip(" -–|:")
+                    name_part = re.sub(r'^(Found|Spotted|Deal|Sale|Price|Clearance):\s*', '', name_part, flags=re.IGNORECASE).strip()
+                    if 5 < len(name_part) < 80:
                         deals.append({
-                            "item_name": name[:100],
-                            "item_number": item_num,
-                            "sale_price": sale.replace(",", "") if sale else "",
-                            "original_price": "",
+                            "item_name": name_part,
+                            "sale_price": prices[0].replace(",", ""),
+                            "original_price": prices[1].replace(",", "") if len(prices) > 1 else "",
                             "promo_start": "",
                             "promo_end": "",
-                            "source": "costco.ca/coupon-book",
-                            "link": flyer_url,
+                            "source": "reddit.com/r/Costco",
+                            "link": f"https://www.reddit.com{permalink}" if permalink else "",
                         })
-                print(f"    Page {i}: {len(items)} items")
-            except Exception as e:
-                print(f"    Page {i} parse failed: {e}")
-
+            time.sleep(0.5)
     except Exception as e:
-        print(f"Coupon book scrape failed: {e}")
+        print(f"Reddit deals search failed: {e}")
     return deals
 
 
-def _scrape_coco_site(base_url: str, source_name: str, link_pattern: str) -> list:
-    """Shared scraper for CocoWest/CocoEast (same format)."""
+def _scrape_kcl_deals() -> list:
+    """Scrape The Krazy Coupon Lady Costco deals listing page."""
     deals = []
     headers = {"User-Agent": random.choice(USER_AGENTS)}
     try:
-        r = requests.get(base_url, headers=headers, timeout=15)
-        r.raise_for_status()
-        soup = BeautifulSoup(r.text, "html.parser")
+        resp = requests.get(
+            "https://thekrazycouponlady.com/coupons-for/costco",
+            headers=headers,
+            timeout=15,
+        )
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
 
-        post_url = None
-        for a in soup.select(f'a[href*="{link_pattern}"]'):
+        # Find deal links - they contain dates and prices in URL slugs
+        for a in soup.find_all("a", href=True):
             href = a.get("href", "")
-            if len(a.get_text(strip=True)) > 20 and "/category/" not in href:
-                post_url = href
-                break
-        if not post_url:
-            return deals
-
-        r = requests.get(post_url, headers=headers, timeout=15)
-        r.raise_for_status()
-        soup = BeautifulSoup(r.text, "html.parser")
-        content = soup.select_one(".entry-content")
-        if not content:
-            return deals
-
-        for line in content.get_text().split("\n"):
-            line = line.strip()
-            m = re.match(r"^(\d{5,8})\s+(.+)", line)
-            if not m:
+            # Match deal article URLs (e.g. /2026/03/26/product-name-usd37-99-at-costco)
+            if not re.search(r'/\d{4}/\d{2}/\d{2}/', href):
                 continue
-            item_num = m.group(1)
-            rest = m.group(2)
-            prices = re.findall(r"\$([\d,]+\.?\d*)", rest)
+
+            title = ""
+            # Get title from heading inside the link, or from the link text
+            h = a.find(["h2", "h3", "h4"])
+            if h:
+                title = h.get_text(strip=True)
+            elif len(a.get_text(strip=True)) > 20:
+                title = a.get_text(strip=True)
+
+            if not title or "$" not in title:
+                continue
+
+            # Skip non-deal articles
+            if any(skip in title.lower() for skip in ["coupon book", "membership", "return policy", "best time"]):
+                continue
+
+            prices = re.findall(r'\$([\d,]+\.?\d*)', title)
             if not prices:
                 continue
 
-            sale_price = prices[-1].replace(",", "")
-            expiry_m = re.search(r"EXPIRES ON (\d{4}-\d{2}-\d{2})", rest)
-            name = re.sub(r"\(.*?\)", "", rest).strip()
-            name = re.sub(r"\$[\d,.]+.*", "", name).strip()
+            # Extract product name (before the first price mention)
+            name_part = re.split(r'(?:,\s*(?:Only|Now|Just))?\s*\$', title)[0].strip()
+            name_part = re.sub(r'^New\s+(?:at\s+)?Costco[:\s]*', '', name_part, flags=re.IGNORECASE).strip()
+            name_part = name_part.rstrip(" -–|:,")
 
-            if name and len(name) > 3:
+            if 5 < len(name_part) < 100:
+                # Look for original/regular price pattern
+                orig = ""
+                reg_match = re.search(r'(?:reg\.?|was|orig\.?)\s*\$?([\d,]+\.?\d*)', title, re.IGNORECASE)
+                if reg_match:
+                    orig = reg_match.group(1).replace(",", "")
+                elif len(prices) > 1:
+                    orig = prices[1].replace(",", "")
+
+                link = href
+                if link.startswith("/"):
+                    link = "https://thekrazycouponlady.com" + link
+
                 deals.append({
-                    "item_name": name[:100],
-                    "item_number": item_num,
-                    "sale_price": sale_price,
-                    "original_price": "",
+                    "item_name": name_part[:100],
+                    "sale_price": prices[0].replace(",", ""),
+                    "original_price": orig,
                     "promo_start": "",
-                    "promo_end": expiry_m.group(1) if expiry_m else "",
-                    "source": source_name,
-                    "link": post_url,
+                    "promo_end": "",
+                    "source": "thekrazycouponlady.com",
+                    "link": link,
                 })
     except Exception as e:
-        print(f"{source_name} scrape failed: {e}")
+        print(f"KCL deals failed: {e}")
     return deals
 
 
-def _scrape_cocowest() -> list:
-    return _scrape_coco_site("https://cocowest.ca/", "cocowest", "weekend-update-costco")
+def _scrape_kcl_coupon_book() -> list:
+    """Scrape The Krazy Coupon Lady Costco coupon book (structured deal data)."""
+    deals = []
+    headers = {"User-Agent": random.choice(USER_AGENTS)}
+    try:
+        resp = requests.get(
+            "https://thekrazycouponlady.com/tips/couponing/costco-coupon-book",
+            headers=headers,
+            timeout=15,
+        )
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        # Try JSON-LD structured data first (most reliable)
+        for script in soup.find_all("script", type="application/ld+json"):
+            try:
+                ld = json.loads(script.string)
+                offers = []
+                if isinstance(ld, dict):
+                    # Handle Product type with nested offers
+                    if ld.get("@type") == "Product" and "offers" in ld:
+                        off = ld["offers"]
+                        if isinstance(off, dict):
+                            offers = off.get("offers", [])
+                            if not offers and off.get("price"):
+                                offers = [off]
+                        elif isinstance(off, list):
+                            offers = off
+                    elif ld.get("@type") == "AggregateOffer":
+                        offers = ld.get("offers", [])
+                    elif "offers" in ld:
+                        off = ld["offers"]
+                        if isinstance(off, dict) and off.get("@type") == "AggregateOffer":
+                            offers = off.get("offers", [])
+                        elif isinstance(off, list):
+                            offers = off
+
+                for offer in offers:
+                    price = offer.get("price", "")
+                    valid_until = offer.get("priceValidUntil", "")
+                    name = offer.get("name", "")
+                    url = offer.get("url", "")
+
+                    # Extract name from URL slug if not on the offer directly
+                    # e.g. ".../hellmanns-big-squeeze-real-mayonnaise-25-fl-oz-2-count/100634569"
+                    if not name and url:
+                        slug_match = re.search(r'/([a-z0-9-]+)/\d+$', url)
+                        if slug_match:
+                            name = slug_match.group(1).replace("-", " ").title()
+
+                    if price and name:
+                        promo_end = ""
+                        if valid_until:
+                            promo_end = valid_until[:10]  # "2026-05-04T..." -> "2026-05-04"
+
+                        deals.append({
+                            "item_name": name[:100],
+                            "sale_price": str(price).replace(",", ""),
+                            "original_price": "",
+                            "promo_start": "",
+                            "promo_end": promo_end,
+                            "source": "costco-coupon-book",
+                            "link": url or "https://thekrazycouponlady.com/tips/couponing/costco-coupon-book",
+                        })
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+        # Fallback: parse page text for deal patterns if JSON-LD didn't yield results
+        if not deals:
+            text = soup.get_text()
+            # Match patterns like "Product Name ... $12.99 ... reg $16.99 ... Exp 05/03/26"
+            for line in text.split("\n"):
+                line = line.strip()
+                if "$" not in line or len(line) < 10 or len(line) > 300:
+                    continue
+
+                prices = re.findall(r'\$([\d,]+\.?\d*)', line)
+                if not prices:
+                    continue
+
+                # Try to extract name before the first price
+                name = line.split("$")[0].strip()
+                name = re.sub(r'^[\d\.\s\-•*]+', '', name).strip()
+
+                skip_words = ["buy", "save", "limit", "exp", "valid", "through", "offer", "see"]
+                if not name or len(name) < 5 or any(name.lower().startswith(w) for w in skip_words):
+                    continue
+
+                # Look for expiry
+                exp_match = re.search(r'(?:Exp|expires?)\s*(\d{1,2}/\d{1,2}/\d{2,4})', line, re.IGNORECASE)
+                promo_end = ""
+                if exp_match:
+                    try:
+                        for fmt in ("%m/%d/%y", "%m/%d/%Y"):
+                            try:
+                                dt = datetime.strptime(exp_match.group(1), fmt)
+                                promo_end = dt.strftime("%Y-%m-%d")
+                                break
+                            except ValueError:
+                                continue
+                    except Exception:
+                        pass
+
+                orig = ""
+                reg_match = re.search(r'(?:reg\.?|was)\s*\$?([\d,]+\.?\d*)', line, re.IGNORECASE)
+                if reg_match:
+                    orig = reg_match.group(1).replace(",", "")
+
+                deals.append({
+                    "item_name": name[:100],
+                    "sale_price": prices[0].replace(",", ""),
+                    "original_price": orig,
+                    "promo_start": "",
+                    "promo_end": promo_end,
+                    "source": "costco-coupon-book",
+                    "link": "https://thekrazycouponlady.com/tips/couponing/costco-coupon-book",
+                })
+
+    except Exception as e:
+        print(f"KCL coupon book failed: {e}")
+    return deals
 
 
-def _scrape_cocoeast() -> list:
-    return _scrape_coco_site("https://cocoeast.ca/", "cocoeast", "costco")
+def _scrape_costcofan() -> list:
+    """Scrape CostcoFan.com — fetch recent article pages and extract prices from body text."""
+    deals = []
+    headers = {"User-Agent": random.choice(USER_AGENTS)}
+    try:
+        resp = requests.get("https://costcofan.com/", headers=headers, timeout=15)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        # Collect article URLs and titles from homepage
+        # Structure: <h2><a href="...">Title</a></h2>
+        articles = []
+        seen_urls = set()
+        for h in soup.find_all(["h2", "h3"]):
+            a = h.find("a", href=True)
+            if not a:
+                continue
+            href = a.get("href", "")
+            if any(skip in href for skip in ["/category/", "/tag/", "/page/", "/author/"]):
+                continue
+            title = a.get_text(strip=True)
+            link = href if href.startswith("http") else "https://costcofan.com" + href
+            if title and len(title) > 10 and link not in seen_urls:
+                seen_urls.add(link)
+                articles.append((title, link))
+            if len(articles) >= 8:
+                break
+
+        # Fetch each article and extract prices from body
+        for title, link in articles:
+            try:
+                r = requests.get(link, headers=headers, timeout=10)
+                r.raise_for_status()
+                page = BeautifulSoup(r.text, "html.parser")
+                content = page.select_one(".entry-content")
+                if not content:
+                    continue
+                text = content.get_text()
+                # Look for price patterns like "$12.99" or "costs $24.99"
+                price_match = re.search(r'(?:costs?|priced?\s+at|for|only|sale)\s+\$(\d+\.?\d*)', text, re.IGNORECASE)
+                if not price_match:
+                    price_match = re.search(r'\$(\d+\.\d{2})', text)
+                if price_match:
+                    price = price_match.group(1)
+                    name = re.sub(r'^(?:Costco|New\s+at\s+Costco)[:\s]*', '', title, flags=re.IGNORECASE).strip()
+                    name = name.rstrip(" -–|:,")
+                    if 5 < len(name) < 100:
+                        deals.append({
+                            "item_name": name[:100],
+                            "sale_price": price,
+                            "original_price": "",
+                            "promo_start": "",
+                            "promo_end": "",
+                            "source": "costcofan.com",
+                            "link": link,
+                        })
+            except Exception:
+                continue
+            time.sleep(0.5)
+    except Exception as e:
+        print(f"CostcoFan failed: {e}")
+    return deals
 
 
-def scan_price_drops(force_refresh: bool = False) -> list:
-    """Scan for Costco price drops from verified working sources."""
+def scan_price_drops(force_refresh: bool = False) -> tuple:
+    """Scan for Costco price drops from US deal sources.
+
+    Returns:
+        tuple: (saved_deals, source_results) where source_results is a list of
+        dicts with keys: name, count, status, duration_s, error
+    """
 
     if not force_refresh:
         cached_count = db.get_cached_deals_count()
         if cached_count > 0:
             print(f"Using {cached_count} cached deals from today")
-            return db.get_all_price_drops()
+            return db.get_all_price_drops(), [{
+                "name": "cache",
+                "count": cached_count,
+                "status": "cached",
+                "duration_s": 0,
+                "error": None,
+            }]
 
-    print("Fresh scan from working sources...")
+    print("Fresh scan from US sources...")
 
     all_deals = []
+    source_results = []
     sources = [
-        ("RFD Hot Deals", _scrape_rfd_hot_deals),
-        ("RFD Clearance", _scrape_rfd_clearance),
         ("Reddit r/Costco", lambda: _scrape_reddit("Costco")),
-        ("Reddit r/CostcoCanada", lambda: _scrape_reddit("CostcoCanada")),
-        ("Costco Coupon Book", _scrape_coupon_book),
-        ("CocoWest In-Store", _scrape_cocowest),
-        ("CocoEast In-Store", _scrape_cocoeast),
+        ("Reddit r/CostcoDeals", lambda: _scrape_reddit("CostcoDeals")),
+        ("Reddit r/Costco (deals)", lambda: _scrape_reddit_deals()),
+        ("KCL Costco Deals", _scrape_kcl_deals),
+        ("KCL Coupon Book", _scrape_kcl_coupon_book),
+        ("CostcoFan", _scrape_costcofan),
     ]
 
     for name, scraper in sources:
+        t0 = time.time()
         try:
             deals = scraper()
+            elapsed = round(time.time() - t0, 1)
             all_deals.extend(deals)
-            print(f"  {name}: {len(deals)} deals")
+            source_results.append({
+                "name": name,
+                "count": len(deals),
+                "status": "ok" if deals else "empty",
+                "duration_s": elapsed,
+                "error": None,
+            })
+            print(f"  {name}: {len(deals)} deals ({elapsed}s)")
         except Exception as e:
-            print(f"  {name}: FAILED - {e}")
+            elapsed = round(time.time() - t0, 1)
+            source_results.append({
+                "name": name,
+                "count": 0,
+                "status": "error",
+                "duration_s": elapsed,
+                "error": str(e),
+            })
+            print(f"  {name}: FAILED ({elapsed}s) - {e}")
         time.sleep(1)  # Rate limit
 
     # Deduplicate by normalized name
@@ -376,4 +432,4 @@ def scan_price_drops(force_refresh: bool = False) -> list:
             saved.append(db.put_price_drop(**deal))
 
     print(f"Saved {len(saved)} deals (skipped {len(all_deals) - len(saved)} duplicates)")
-    return saved
+    return saved, source_results

@@ -1,11 +1,10 @@
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+FROM --platform=linux/arm64 ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 WORKDIR /app
 
 ENV UV_SYSTEM_PYTHON=1 UV_COMPILE_BYTECODE=1
 
 COPY requirements.txt .
 RUN uv pip install -r requirements.txt
-RUN playwright install --with-deps chromium
 
 ENV DOCKER_CONTAINER=1
 
